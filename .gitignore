@@ -1,6 +1,6 @@
 .env
-pycache/
+__pycache__/
 *.pyc
 .venv/
-.log
-migrations/versions/
+*.log
+migrations/versions/*
