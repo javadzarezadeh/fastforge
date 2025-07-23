@@ -1,0 +1,6 @@
+.env
+pycache/
+*.pyc
+.venv/
+.log
+migrations/versions/
