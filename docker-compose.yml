@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   app:
     build:
@@ -14,7 +13,8 @@ services:
     volumes:
       - ./src:/app/src
       - ./migrations:/app/migrations
-
+    networks:
+      - fastforge-network
   db:
     image: postgres:17
     environment:
@@ -23,6 +23,24 @@ services:
       POSTGRES_DB: dbname
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
+    networks:
+      - fastforge-network
+  adminer:
+    image: adminer:5.3.0
+    restart: on-failure:5
+    ports:
+      - "8081:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=db
+      - ADMINER_DESIGN=pepa-linha
+    mem_limit: 128m
+    cpu_shares: 256
+    depends_on:
+      - db
+    networks:
+      - fastforge-network
 volumes:
   postgres_data:
+networks:
+  fastforge-network:
+    driver: bridge
