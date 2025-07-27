@@ -1,8 +1,10 @@
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Annotated, List, Optional
 
-from pydantic import constr
+from pydantic import StringConstraints
 from sqlmodel import Field, Relationship, SQLModel
+
+from .role import UserRole
 
 if TYPE_CHECKING:
     from .role import Role
@@ -10,10 +12,10 @@ if TYPE_CHECKING:
 
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    phone_number: str = Field(
-        unique=True, index=True, sa_type=constr(pattern=r"^\+?[1-9]\d{1,14}$")
+    phone_number: Annotated[str, StringConstraints(pattern=r"^\+?[1-9]\d{1,14}$")] = (
+        Field(unique=True, index=True)
     )
     otp_secret: Optional[str] = Field(default=None, max_length=32)  # For TOTP
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
     updated_at: Optional[datetime] = None
-    roles: List["Role"] = Relationship(back_populates="users", link_model="UserRole")
+    roles: List["Role"] = Relationship(back_populates="users", link_model=UserRole)
