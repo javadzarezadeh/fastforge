@@ -15,7 +15,7 @@ class User(SQLModel, table=True):
     phone_number: Annotated[str, StringConstraints(pattern=r"^\+?[1-9]\d{1,14}$")] = (
         Field(unique=True, index=True)
     )
-    otp_secret: Optional[str] = Field(default=None, max_length=32)  # For TOTP
+    hashed_password: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
     updated_at: Optional[datetime] = None
     roles: List["Role"] = Relationship(back_populates="users", link_model=UserRole)
