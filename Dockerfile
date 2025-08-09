@@ -1,7 +1,14 @@
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 # Install uv from official image
-COPY --from=ghcr.io/astral-sh/uv:0.8.1 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /uvx /bin/
+
+# Install system dependencies for psycopg[binary] and argon2-cffi
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    libargon2-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -9,10 +16,9 @@ WORKDIR /app
 COPY pyproject.toml .
 COPY uv.lock .
 COPY src ./src
+COPY migrations ./migrations
 
 # Install dependencies
 RUN uv sync --frozen
 
-ENV PATH="/app/.venv/bin:$PATH"
-
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "fastapi", "run", "src/main.py", "--host", "0.0.0.0", "--port", "8000"]

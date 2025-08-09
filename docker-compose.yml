@@ -1,4 +1,16 @@
 services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: fastforge
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - fastforge-network
   app:
     build:
       context: .
@@ -9,21 +21,10 @@ services:
       - .env
     depends_on:
       - db
+      - redis
     volumes:
       - ./src:/app/src
       - ./migrations:/app/migrations
-    networks:
-      - fastforge-network
-  db:
-    image: postgres:17
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: dbname
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     networks:
       - fastforge-network
   adminer:
@@ -38,6 +39,12 @@ services:
     cpu_shares: 256
     depends_on:
       - db
+    networks:
+      - fastforge-network
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
     networks:
       - fastforge-network
 volumes:
