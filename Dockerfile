@@ -25,4 +25,4 @@ RUN uv sync --frozen
 ENV DOCKER_ENV=1
 
 WORKDIR /app/src
-CMD ["uv", "run", "fastapi", "run", "main.py", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "fastapi", "run", "main.py", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--proxy-headers"]
