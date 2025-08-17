@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
+# Import all models to ensure they are registered with SQLModel.metadata
+import src.models  # noqa: F401
+
 # Load environment variables
 load_dotenv()
 
@@ -14,15 +17,25 @@ load_dotenv()
 config = context.config
 
 # Set database URL from environment variable
-config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
+# Dynamically set DATABASE_URL
+if os.getenv("DOCKER_ENV"):
+    config.set_main_option(
+        "sqlalchemy.url", "postgresql+psycopg://postgres:password@db:5432/fastforge"
+    )
+else:
+    config.set_main_option(
+        "sqlalchemy.url",
+        os.getenv(
+            "DATABASE_URL",
+            "postgresql+psycopg://postgres:password@localhost:5432/fastforge",
+        ),
+    )
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Import all models to ensure they are registered with SQLModel.metadata
-import src.models  # noqa: E402, F401
 
 # add your model's MetaData object here
 # for 'autogenerate' support

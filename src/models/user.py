@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Annotated, List, Optional
 
@@ -11,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class User(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     phone_number: Annotated[str, StringConstraints(pattern=r"^\+?[1-9]\d{1,14}$")] = (
         Field(unique=True, index=True)
     )
