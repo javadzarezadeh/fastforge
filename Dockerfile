@@ -21,4 +21,8 @@ COPY migrations ./migrations
 # Install dependencies
 RUN uv sync --frozen
 
-CMD ["uv", "run", "fastapi", "run", "src/main.py", "--host", "0.0.0.0", "--port", "8000"]
+# Set DOCKER_ENV for migrations
+ENV DOCKER_ENV=1
+
+WORKDIR /app/src
+CMD ["uv", "run", "fastapi", "run", "main.py", "--host", "0.0.0.0", "--port", "8000"]
