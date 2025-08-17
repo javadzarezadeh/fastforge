@@ -19,6 +19,8 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+    - DOCKER_ENV=1
     depends_on:
       - db
       - redis

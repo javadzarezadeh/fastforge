@@ -1,4 +1,3 @@
-import logging
 import os
 from typing import Optional
 
@@ -16,13 +15,6 @@ from .auth import (
 )
 from .database import get_session
 from .sms_service import MockSMSService, SMSService
-
-# Configure logging
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO"),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
 
 app = FastAPI(title="FastForge")
 
