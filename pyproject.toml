@@ -15,6 +15,7 @@ dependencies = [
     "psycopg[binary]>=3.2.9,<4.0.0",
     "argon2-cffi>=25.1.0,<26.0.0",
     "redis[hiredis]>=6.4.0,<7.0.0",
+    "slowapi>=0.1.9,<0.2.0",
 ]
 
 [tool.uv]
