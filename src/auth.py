@@ -27,16 +27,19 @@ redis_client = redis.Redis.from_url(
 
 
 def generate_otp() -> str:
+    """Generate a 6-digit OTP"""
     return "".join(random.choices(string.digits, k=6))
 
 
 def store_otp(phone_number: str, otp: str) -> None:
+    """Store OTP in Redis with expiration"""
     redis_client.setex(
         f"otp:{phone_number}", timedelta(minutes=OTP_EXPIRE_MINUTES), otp
     )
 
 
 def verify_otp_stored(phone_number: str, otp: str) -> bool:
+    """Verify OTP from Redis"""
     stored_otp = redis_client.get(f"otp:{phone_number}")
     if stored_otp and stored_otp == otp:
         redis_client.delete(f"otp:{phone_number}")
@@ -45,10 +48,12 @@ def verify_otp_stored(phone_number: str, otp: str) -> bool:
 
 
 def hash_password(password: str) -> str:
+    """Hash a password using Argon2"""
     return ph.hash(password)
 
 
 def verify_password(hashed_password: str, password: str) -> bool:
+    """Verify a password against its Argon2 hash"""
     try:
         return ph.verify(hashed_password, password)
     except VerifyMismatchError:
@@ -56,31 +61,14 @@ def verify_password(hashed_password: str, password: str) -> bool:
 
 
 def create_access_token(data: dict) -> str:
+    """Create JWT token"""
     to_encode = data.copy()
     expire = datetime.now(tz=timezone.utc) + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
     )
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
-def create_user(
-    session: Session, phone_number: str, password: Optional[str] = None
-) -> User:
-    user = session.exec(select(User).where(User.phone_number == phone_number)).first()
-    if user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Phone number already registered",
-        )
-    user = User(
-        phone_number=phone_number,
-        hashed_password=hash_password(password) if password else None,
-    )
-    session.add(user)
-    session.commit()
-    session.refresh(user)
-    return user
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
 
 def register_user(
@@ -89,6 +77,7 @@ def register_user(
     password: Optional[str],
     sms_service: MockSMSService,
 ) -> dict:
+    """Register user and send OTP via SMS"""
     otp = generate_otp()
     store_otp(phone_number, otp)
     if not sms_service.send_otp(phone_number, otp):
@@ -101,18 +90,28 @@ def register_user(
 
 def verify_otp(
     session: Session, phone_number: str, otp: str, password: Optional[str]
-) -> Optional[User]:
+) -> User:
+    """Verify OTP and create user if valid"""
     if not verify_otp_stored(phone_number, otp):
-        return None
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP"
+        )
     user = session.exec(select(User).where(User.phone_number == phone_number)).first()
     if not user:
-        user = create_user(session, phone_number, password)
+        user = User(
+            phone_number=phone_number,
+            hashed_password=hash_password(password) if password else None,
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
     return user
 
 
 def send_login_otp(
     session: Session, phone_number: str, sms_service: MockSMSService
 ) -> dict:
+    """Send OTP for login"""
     user = session.exec(select(User).where(User.phone_number == phone_number)).first()
     if not user:
         raise HTTPException(
@@ -131,9 +130,14 @@ def send_login_otp(
 def verify_password_login(
     session: Session, phone_number: str, password: str
 ) -> Optional[User]:
+    """Verify password for login"""
     user = session.exec(select(User).where(User.phone_number == phone_number)).first()
-    if not user or not user.hashed_password:
-        return None
-    if verify_password(user.hashed_password, password):
-        return user
-    return None
+    if (
+        not user
+        or not user.hashed_password
+        or not verify_password(password, user.hashed_password)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+        )
+    return user
