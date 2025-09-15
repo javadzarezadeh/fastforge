@@ -2,7 +2,6 @@ import os
 import random
 import string
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 import redis
 from argon2 import PasswordHasher
@@ -105,7 +104,7 @@ async def get_current_user(
 
 
 def verify_otp(
-    session: Session, phone_number: str, otp: str, email: Optional[str] = None
+    session: Session, phone_number: str, otp: str, email: str | None = None
 ) -> User:
     """Verify OTP and create user if valid"""
     if not verify_otp_stored(phone_number, otp):
