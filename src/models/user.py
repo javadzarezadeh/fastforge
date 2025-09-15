@@ -16,6 +16,7 @@ class User(SQLModel, table=True):
     phone_number: Annotated[str, StringConstraints(pattern=r"^\+?[1-9]\d{1,14}$")] = (
         Field(unique=True, index=True)
     )
+    email: Optional[str] = Field(default=None, unique=True, index=True)
     hashed_password: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
     updated_at: Optional[datetime] = None
