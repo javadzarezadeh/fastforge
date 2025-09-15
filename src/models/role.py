@@ -1,5 +1,5 @@
 import uuid
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List
 
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -15,5 +15,5 @@ class UserRole(SQLModel, table=True):
 class Role(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str = Field(unique=True, index=True, max_length=50)
-    description: Optional[str] = None
+    description: str | None = None
     users: List["User"] = Relationship(back_populates="roles", link_model=UserRole)

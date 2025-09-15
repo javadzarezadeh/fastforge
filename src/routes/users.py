@@ -1,5 +1,3 @@
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
@@ -16,13 +14,13 @@ router = APIRouter(
 class UserResponse(BaseModel):
     id: str
     phone_number: str
-    email: Optional[EmailStr] = None
+    email: EmailStr | None = None
 
 
 class UserUpdate(BaseModel):
-    phone_number: Optional[str] = None
-    email: Optional[EmailStr] = None
-    password: Optional[str] = None
+    phone_number: str | None = None
+    email: EmailStr | None = None
+    password: str | None = None
 
 
 @router.get("/me", response_model=UserResponse)
