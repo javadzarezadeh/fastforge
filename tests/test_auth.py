@@ -5,8 +5,9 @@ import redis
 from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from src.auth import create_access_token
 from src.main import app, get_session
-from src.models.user import User
+from src.models.user import Role, User, UserRole
 from src.sms_service import MockSMSService
 
 # In-memory SQLite database for testing
@@ -51,6 +52,23 @@ def mock_sms_service():
 @pytest.fixture
 def client():
     return TestClient(app)
+
+
+# Create admin user
+@pytest.fixture
+def admin_user():
+    with Session(engine) as session:
+        admin_role = Role(name="admin")
+        session.add(admin_role)
+        user = User(phone_number="+1234567890", email="admin@example.com")
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        session.refresh(admin_role)
+        user_role = UserRole(user_id=user.id, role_id=admin_role.id)
+        session.add(user_role)
+        session.commit()
+        return user
 
 
 # Test POST /auth/request-otp
@@ -108,13 +126,29 @@ def test_login_valid_otp_new_user(client, mock_redis, mock_sms_service):
             assert user.email is None
             assert user.hashed_password is None
 
+            assert "user" in [role.name for role in user.roles]
+
 
 # Test POST /auth/login - Valid OTP, existing user
 def test_login_valid_otp_existing_user(client, mock_redis, mock_sms_service):
     # Create user
     with Session(engine) as session:
+        user_role = Role(name="user")
+
+        session.add(user_role)
+
         user = User(phone_number="+3223456", email=None, hashed_password=None)
         session.add(user)
+        session.commit()
+
+        session.refresh(user)
+
+        session.refresh(user_role)
+
+        user_role_link = UserRole(user_id=user.id, role_id=user_role.id)
+
+        session.add(user_role_link)
+
         session.commit()
 
     mock_redis.get.return_value = "907816"
@@ -171,14 +205,23 @@ def test_verify_login_otp_new_user(client, mock_redis, mock_sms_service):
             assert user.phone_number == "+3223456"
             assert user.email is None
             assert user.hashed_password is None
+            assert "user" in [role.name for role in user.roles]
 
 
 # Test POST /auth/verify-login-otp - Valid OTP, existing user
 def test_verify_login_otp_existing_user(client, mock_redis, mock_sms_service):
     # Create user
     with Session(engine) as session:
+        user_role = Role(name="user")
+
+        session.add(user_role)
         user = User(phone_number="+3223456", email=None, hashed_password=None)
         session.add(user)
+        session.commit()
+        session.refresh(user)
+        session.refresh(user_role)
+        user_role_link = UserRole(user_id=user.id, role_id=user_role.id)
+        session.add(user_role_link)
         session.commit()
 
     mock_redis.get.return_value = "907816"
@@ -260,3 +303,60 @@ def test_verify_login_otp_rate_limit(client, mock_redis, mock_sms_service):
         )
         assert response.status_code == 429
         assert "Rate limit exceeded" in response.json()["detail"]
+
+
+# Test admin-only endpoint /users/{user_id}
+def test_get_user_by_id_admin(client, admin_user, mock_redis, mock_sms_service):
+    # Create a non-admin user
+    with Session(engine) as session:
+        user_role = Role(name="user")
+        session.add(user_role)
+        user = User(phone_number="+3223456", email=None, hashed_password=None)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        session.refresh(user_role)
+        user_role_link = UserRole(user_id=user.id, role_id=user_role.id)
+        session.add(user_role_link)
+        session.commit()
+
+    # Get JWT for admin
+    admin_token = create_access_token({"sub": admin_user.phone_number})
+
+    # Test admin access
+    response = client.get(
+        f"/users/{user.id}", headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "id": str(user.id),
+        "phone_number": "+3223456",
+        "email": None,
+        "roles": ["user"],
+    }
+
+
+# Test /users/{user_id} - Non-admin access
+def test_get_user_by_id_non_admin(client, mock_redis, mock_sms_service):
+    # Create a non-admin user
+    with Session(engine) as session:
+        user_role = Role(name="user")
+        session.add(user_role)
+        user = User(phone_number="+3223456", email=None, hashed_password=None)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        session.refresh(user_role)
+        user_role_link = UserRole(user_id=user.id, role_id=user_role.id)
+        session.add(user_role_link)
+        session.commit()
+
+    # Get JWT for non-admin
+    user_token = create_access_token({"sub": user.phone_number})
+
+    # Test non-admin access
+    response = client.get(
+        f"/users/{user.id}", headers={"Authorization": f"Bearer {user_token}"}
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Requires one of: admin"

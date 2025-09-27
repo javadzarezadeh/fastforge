@@ -2,6 +2,7 @@ import os
 import random
 import string
 from datetime import datetime, timedelta, timezone
+from typing import Callable
 
 import redis
 from argon2 import PasswordHasher
@@ -103,10 +104,38 @@ async def get_current_user(
         )
 
 
+async def get_current_user_with_roles(
+    required_roles: list[str] = None,
+    token: str = Depends(oauth2_scheme),
+    session: Session = Depends(get_session),
+) -> User:
+    """Get current user with role check"""
+    user = await get_current_user(token, session)
+    if required_roles:
+        user_roles = [role.name for role in user.roles]
+        if not any(role in user_roles for role in required_roles):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires one of: {', '.join(required_roles)}",
+            )
+    return user
+
+
+def role_required(required_roles: list[str]) -> Callable:
+    """Factory function to create role-specific dependencies"""
+
+    async def dependency(
+        token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)
+    ) -> User:
+        return await get_current_user_with_roles(token, session, required_roles)
+
+    return dependency
+
+
 def verify_otp(
     session: Session, phone_number: str, otp: str, email: str | None = None
 ) -> User:
-    """Verify OTP and create user if valid"""
+    """Verify OTP and create user with default 'user' role if not exists"""
     if not verify_otp_stored(phone_number, otp):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP"

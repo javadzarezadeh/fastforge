@@ -1,10 +1,12 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
 
-from ..auth import get_current_user, hash_password
+from ..auth import get_current_user, hash_password, role_required
 from ..database import get_session
-from ..models.user import User
+from ..models.user import Role, User, UserRole
 
 router = APIRouter(
     prefix="/users", tags=["users"], responses={404: {"description": "Not found"}}
@@ -15,12 +17,14 @@ class UserResponse(BaseModel):
     id: str
     phone_number: str
     email: EmailStr | None = None
+    roles: list[str] = []
 
 
 class UserUpdate(BaseModel):
     phone_number: str | None = None
     email: EmailStr | None = None
     password: str | None = None
+    roles: list[str] | None = None
 
 
 @router.get("/me", response_model=UserResponse)
@@ -30,6 +34,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         id=str(current_user.id),
         phone_number=current_user.phone_number,
         email=current_user.email,
+        roles=[role.name for role in current_user.roles],
     )
 
 
@@ -39,7 +44,7 @@ async def update_current_user(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    """Update current user's information"""
+    """Update current user's information (non-admins can't change roles)"""
     if (
         user_update.phone_number
         and user_update.phone_number != current_user.phone_number
@@ -70,6 +75,27 @@ async def update_current_user(
     if user_update.password:
         current_user.hashed_password = hash_password(user_update.password)
 
+    # Role updates (admin only)
+    if user_update.roles and "admin" not in [role.name for role in current_user.roles]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can update roles"
+        )
+    if user_update.roles:
+        # Clear existing roles
+        session.exec(
+            select(UserRole).where(UserRole.user_id == current_user.id)
+        ).delete()
+        # Add new roles
+        for role_name in user_update.roles:
+            role = session.exec(select(Role).where(Role.name == role_name)).first()
+            if not role:
+                role = Role(name=role_name)
+                session.add(role)
+                session.commit()
+                session.refresh(role)
+            user_role = UserRole(user_id=current_user.id, role_id=role.id)
+            session.add(user_role)
+
     session.add(current_user)
     session.commit()
     session.refresh(current_user)
@@ -78,6 +104,7 @@ async def update_current_user(
         id=str(current_user.id),
         phone_number=current_user.phone_number,
         email=current_user.email,
+        roles=[role.name for role in current_user.roles],
     )
 
 
@@ -92,21 +119,26 @@ async def delete_current_user(
     return None
 
 
-# Optional: Admin-only endpoint (uncomment if you add is_admin to User model)
-# @router.get("/{user_id}", response_model=UserResponse)
-# async def get_user_by_id(
-#     user_id: str,
-#     current_user: User = Depends(get_current_user),
-#     session: Session = Depends(get_session)
-# ):
-#     """Get user by ID (admin only)"""
-#     if not current_user.is_admin:
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-#     user = session.exec(select(User).where(User.id == user_id)).first()
-#     if not user:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-#     return UserResponse(
-#         id=str(user.id),
-#         phone_number=user.phone_number,
-#         email=user.email
-#     )
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user_by_id(
+    user_id: str,
+    current_user: User = Depends(role_required(["admin"])),
+    session: Session = Depends(get_session),
+):
+    """Get user by ID (admin only)"""
+    try:
+        user = session.exec(select(User).where(User.id == UUID(user_id))).first()
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID"
+        )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    return UserResponse(
+        id=str(user.id),
+        phone_number=user.phone_number,
+        email=user.email,
+        roles=[role.name for role in user.roles],
+    )
