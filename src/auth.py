@@ -7,13 +7,13 @@ from typing import Callable
 import redis
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from fastapi import Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlmodel import Session, select
 
 from .database import get_session
-from .models.user import User
+from .models.user import Role, User, UserRole
 from .sms_service import MockSMSService
 
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secure-random-key-here")
@@ -21,12 +21,14 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 OTP_EXPIRE_MINUTES = 5
 
+router = APIRouter(prefix="/auth", tags=["auth"])
+
 ph = PasswordHasher()
 
 # Use OAuth2PasswordBearer for simple username/password input in Swagger UI
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/auth/login",
-    description="Enter phone number as username and OTP (from POST /auth/request-otp logs) as password. New users are created automatically.",
+    description="Enter phone number as username and OTP (from POST /auth/request-otp logs) as password. New users are created automatically, with 'user' role.",
 )
 
 redis_client = redis.Redis.from_url(
@@ -127,7 +129,9 @@ def role_required(required_roles: list[str]) -> Callable:
     async def dependency(
         token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)
     ) -> User:
-        return await get_current_user_with_roles(token, session, required_roles)
+        return await get_current_user_with_roles(
+            required_roles=required_roles, token=token, session=session
+        )
 
     return dependency
 
@@ -155,6 +159,16 @@ def verify_otp(
         session.add(user)
         session.commit()
         session.refresh(user)
+        # Assign default 'user' role
+        user_role = session.exec(select(Role).where(Role.name == "user")).first()
+        if not user_role:
+            user_role = Role(name="user")
+            session.add(user_role)
+            session.commit()
+            session.refresh(user_role)
+        user_role_link = UserRole(user_id=user.id, role_id=user_role.id)
+        session.add(user_role_link)
+        session.commit()
     return user
 
 
@@ -166,3 +180,30 @@ def send_login_otp(
     store_otp(phone_number, otp)
     sms_service.send_otp(phone_number, otp)
     return {"message": "OTP sent for login or registration"}
+
+
+@router.post("/create-admin")
+async def create_admin(
+    phone_number: str, secret_key: str, session: Session = Depends(get_session)
+):
+    if secret_key != os.getenv("ADMIN_SECRET_KEY"):
+        raise HTTPException(status_code=403, detail="Invalid secret key")
+    user = session.exec(select(User).where(User.phone_number == phone_number)).first()
+    if user:
+        raise HTTPException(status_code=400, detail="User already exists")
+    user = User(
+        phone_number=phone_number, email=None, created_at=datetime.now(tz=timezone.utc)
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    admin_role = session.exec(select(Role).where(Role.name == "admin")).first()
+    if not admin_role:
+        admin_role = Role(name="admin")
+        session.add(admin_role)
+        session.commit()
+        session.refresh(admin_role)
+    user_role = UserRole(user_id=user.id, role_id=admin_role.id)
+    session.add(user_role)
+    session.commit()
+    return {"message": "Admin created"}

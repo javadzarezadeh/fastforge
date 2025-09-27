@@ -12,10 +12,14 @@ from sqlmodel import Session
 
 from .auth import (
     create_access_token,
+)
+from .auth import router as auth_router
+from .auth import (
     send_login_otp,
     verify_otp,
 )
 from .database import get_session
+from .routes.roles import router as roles_router
 from .routes.users import router as users_router
 from .sms_service import MockSMSService, SMSService
 
@@ -55,6 +59,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(users_router)
+app.include_router(auth_router)
+app.include_router(roles_router)
 
 
 # Input models
