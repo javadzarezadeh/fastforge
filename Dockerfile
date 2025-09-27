@@ -17,12 +17,13 @@ COPY pyproject.toml .
 COPY uv.lock .
 COPY src ./src
 COPY migrations ./migrations
+COPY tests ./tests
 
 # Install dependencies
-RUN uv sync --frozen
+RUN uv sync --frozen --no-cache
+RUN uv sync --frozen --no-cache --group dev
 
 # Set DOCKER_ENV for migrations
 ENV DOCKER_ENV=1
 
-WORKDIR /app/src
-CMD ["uv", "run", "fastapi", "run", "main.py", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--proxy-headers"]
+CMD ["uv", "run", "fastapi", "run", "src/main.py", "--port", "8000", "--host", "0.0.0.0"]
