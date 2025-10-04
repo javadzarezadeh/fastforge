@@ -1,4 +1,3 @@
-import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -6,30 +5,26 @@ from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
-# Import all models to ensure they are registered with SQLModel.metadata
-import src.models  # noqa: F401
-
-# Load environment variables
+# Load environment variables before importing config
 load_dotenv()
+
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+# Import all models to ensure they are registered with SQLModel.metadata
+import src.models  # noqa: F401, E402
+
+# Add the src directory to the path so we can import from it
+sys.path.append(str(Path(__file__).parent.parent))
+
+from src.config import Config  # noqa: E402
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Set database URL from environment variable
-# Dynamically set DATABASE_URL
-if os.getenv("DOCKER_ENV"):
-    config.set_main_option(
-        "sqlalchemy.url", "postgresql+psycopg://postgres:password@db:5432/fastforge"
-    )
-else:
-    config.set_main_option(
-        "sqlalchemy.url",
-        os.getenv(
-            "DATABASE_URL",
-            "postgresql+psycopg://postgres:password@localhost:5432/fastforge",
-        ),
-    )
+# Set database URL from centralized configuration
+config.set_main_option("sqlalchemy.url", Config.get_database_url())
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
