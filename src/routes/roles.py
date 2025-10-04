@@ -9,20 +9,44 @@ router = APIRouter(prefix="/roles", tags=["roles"])
 
 
 @router.get("/", response_model=list[str])
-async def list_roles(
+async def get_all_roles(
     session: Session = Depends(get_session),
     current_user=Depends(role_required(["admin"])),
 ):
+    """
+    Get all roles (admin only).
+
+    Args:
+        session: Database session dependency
+        current_user: The authenticated admin user object
+
+    Returns:
+        list[str]: A list of all role names
+    """
     roles = session.exec(select(Role)).all()
     return [role.name for role in roles]
 
 
 @router.post("/", response_model=str)
-async def create_role(
+async def create_new_role(
     name: str,
     session: Session = Depends(get_session),
     current_user=Depends(role_required(["admin"])),
 ):
+    """
+    Create a new role (admin only).
+
+    Args:
+        name: The name of the new role
+        session: Database session dependency
+        current_user: The authenticated admin user object
+
+    Returns:
+        str: The name of the created role
+
+    Raises:
+        HTTPException: If role already exists
+    """
     if session.exec(select(Role).where(Role.name == name)).first():
         raise HTTPException(status_code=400, detail="Role already exists")
     role = Role(name=name)

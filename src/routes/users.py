@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
 
-from ..auth import get_current_user, hash_password, role_required
+from ..auth import get_current_user, hash_password, role_required, validate_phone_number
 from ..database import get_session
 from ..models.user import Role, User, UserRole
 
@@ -28,8 +28,16 @@ class UserUpdate(BaseModel):
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(current_user: User = Depends(get_current_user)):
-    """Get current user's information"""
+async def get_authenticated_user_info(current_user: User = Depends(get_current_user)):
+    """
+    Get current user's information.
+
+    Args:
+        current_user: The authenticated user object
+
+    Returns:
+        UserResponse: The current user's information
+    """
     return UserResponse(
         id=str(current_user.id),
         phone_number=current_user.phone_number,
@@ -44,11 +52,32 @@ async def update_current_user(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    """Update current user's information (non-admins can't change roles)"""
+    """
+    Update current user's information (non-admins can't change roles).
+
+    Args:
+        user_update: The user update data
+        current_user: The authenticated user object
+        session: Database session dependency
+
+    Returns:
+        UserResponse: The updated user's information
+
+    Raises:
+        HTTPException: If phone number or email is already registered,
+                       or if non-admin tries to update roles
+    """
     if (
         user_update.phone_number
         and user_update.phone_number != current_user.phone_number
     ):
+        # Validate phone number format
+        if not validate_phone_number(user_update.phone_number):
+            raise HTTPException(
+                status_code=status.HTTP_40_BAD_REQUEST,
+                detail="Invalid phone number format",
+            )
+
         existing_user = session.exec(
             select(User).where(User.phone_number == user_update.phone_number)
         ).first()
@@ -64,7 +93,7 @@ async def update_current_user(
         ).first()
         if existing_email:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_40_BAD_REQUEST,
                 detail="Email already registered",
             )
 
@@ -113,7 +142,16 @@ async def delete_current_user(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
-    """Delete current user"""
+    """
+    Delete current user.
+
+    Args:
+        current_user: The authenticated user object
+        session: Database session dependency
+
+    Returns:
+        None: Indicates successful deletion
+    """
     session.delete(current_user)
     session.commit()
     return None
@@ -125,7 +163,20 @@ async def get_user_by_id(
     current_user: User = Depends(role_required(["admin"])),
     session: Session = Depends(get_session),
 ):
-    """Get user by ID (admin only)"""
+    """
+    Get user by ID (admin only).
+
+    Args:
+        user_id: The ID of the user to retrieve
+        current_user: The authenticated admin user object
+        session: Database session dependency
+
+    Returns:
+        UserResponse: The requested user's information
+
+    Raises:
+        HTTPException: If user ID is invalid or user not found
+    """
     try:
         user = session.exec(select(User).where(User.id == UUID(user_id))).first()
     except ValueError:
