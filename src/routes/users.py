@@ -118,10 +118,10 @@ async def update_current_user(
         for role_name in user_update.roles:
             role = session.exec(select(Role).where(Role.name == role_name)).first()
             if not role:
-                role = Role(name=role_name)
-                session.add(role)
-                session.commit()
-                session.refresh(role)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Role '{role_name}' does not exist",
+                )
             user_role = UserRole(user_id=current_user.id, role_id=role.id)
             session.add(user_role)
 

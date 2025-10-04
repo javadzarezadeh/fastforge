@@ -168,10 +168,23 @@ async def create_admin_user(
         A dictionary with a success message
 
     Raises:
-        HTTPException: If secret key is invalid or user already exists
+        HTTPException: If secret key is invalid, user already exists,
+                       or an admin user already exists
     """
     if secret_key != Config.ADMIN_SECRET_KEY:
         raise HTTPException(status_code=403, detail="Invalid secret key")
+
+    # Check if any admin user already exists
+    existing_admin = session.exec(
+        select(User).join(UserRole).join(Role).where(Role.name == "admin")
+    ).first()
+
+    if existing_admin:
+        raise HTTPException(
+            status_code=400,
+            detail="An admin user already exists. This endpoint is disabled.",
+        )
+
     user = session.exec(select(User).where(User.phone_number == phone_number)).first()
     if user:
         raise HTTPException(status_code=400, detail="User already exists")
@@ -183,7 +196,7 @@ async def create_admin_user(
     session.refresh(user)
     admin_role = session.exec(select(Role).where(Role.name == "admin")).first()
     if not admin_role:
-        admin_role = Role(name="admin")
+        admin_role = Role(name="admin", description="Administrator with full access")
         session.add(admin_role)
         session.commit()
         session.refresh(admin_role)

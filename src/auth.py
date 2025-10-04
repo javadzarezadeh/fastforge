@@ -184,7 +184,7 @@ async def get_current_user_with_roles(
         if not any(role in user_roles for role in required_roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Requires one of: {', '.join(required_roles)}",
+                detail=f"Access denied: This action requires one of the following roles: {', '.join(required_roles)}",
             )
     return user
 
@@ -250,7 +250,7 @@ def verify_otp_and_create_user(
         # Assign default 'user' role
         user_role = session.exec(select(Role).where(Role.name == "user")).first()
         if not user_role:
-            user_role = Role(name="user")
+            user_role = Role(name="user", description="Standard user with basic access")
             session.add(user_role)
             session.commit()
             session.refresh(user_role)

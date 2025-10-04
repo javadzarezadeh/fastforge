@@ -30,6 +30,7 @@ async def get_all_roles(
 @router.post("/", response_model=str)
 async def create_new_role(
     name: str,
+    description: str = None,
     session: Session = Depends(get_session),
     current_user=Depends(role_required(["admin"])),
 ):
@@ -38,6 +39,7 @@ async def create_new_role(
 
     Args:
         name: The name of the new role
+        description: Optional description of what the role can do
         session: Database session dependency
         current_user: The authenticated admin user object
 
@@ -49,7 +51,7 @@ async def create_new_role(
     """
     if session.exec(select(Role).where(Role.name == name)).first():
         raise HTTPException(status_code=400, detail="Role already exists")
-    role = Role(name=name)
+    role = Role(name=name, description=description)
     session.add(role)
     session.commit()
     return role.name
