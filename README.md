@@ -99,17 +99,14 @@ The application uses a centralized configuration system via the `src/config.py` 
    docker-compose up --build
    ```
 
-2. **Run Migrations**:
+2. **Run Migrations** (in a separate terminal):
    ```bash
-   docker-compose up -d db
-   uv run alembic revision --autogenerate -m "Initial migration"
    uv run alembic upgrade head
    ```
 
 3. **Access Services**:
    - API: `http://localhost:8000`
    - Adminer (PostgreSQL UI): `http://localhost:8081`
-   - Redis: Port `6379` (internal to Docker network)
 
 ## Usage
 
@@ -246,32 +243,23 @@ fastforge/
 - **FastAPI**: Web framework
 - **SQLModel**: ORM for PostgreSQL
 - **psycopg**: PostgreSQL driver
-- **redis[hiredis]**: OTP storage
+- **redis**: OTP storage
 - **argon2-cffi**: Password hashing
 - **python-jose**: JWT handling
 - **pydantic**: Input validation
 - **alembic**: Database migrations
 - **uv**: Package management
 - **pytest**: Testing framework
-- **pre-commit**: Code quality checks
 
 ## Contributing
 
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature/your-feature`.
-3. Commit changes: `git commit -m "Add your feature"`.
-4. Run pre-commit hooks: `uv run pre-commit run --all-files`.
-5. Push to branch: `git push origin feature/your-feature`.
-6. Open a pull request.
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit changes: `git commit -m "Add your feature"`
+4. Run pre-commit hooks: `uv run pre-commit run --all-files`
+5. Push to branch: `git push origin feature/your-feature`
+6. Open a pull request
 
 ## License
 
-MIT License
-
-Copyright (c) 2025 FastForge Contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
