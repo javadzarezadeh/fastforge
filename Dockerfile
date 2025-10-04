@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     libargon2-dev \
     build-essential \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --shell /bin/bash app
 
 WORKDIR /app
 
@@ -20,10 +21,16 @@ COPY migrations ./migrations
 COPY tests ./tests
 
 # Install dependencies
-RUN uv sync --frozen --no-cache
-RUN uv sync --frozen --no-cache --group dev
+RUN uv sync --frozen --no-cache && \
+    uv sync --frozen --no-cache --group dev
 
 # Set DOCKER_ENV for migrations
 ENV DOCKER_ENV=1
+
+# Change ownership to app user
+RUN chown -R app:app /app
+USER app
+
+EXPOSE 8000
 
 CMD ["uv", "run", "fastapi", "run", "src/main.py", "--port", "8000", "--host", "0.0.0.0"]
