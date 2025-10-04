@@ -11,18 +11,37 @@ FastForge is a lightweight, secure, and scalable FastAPI boilerplate designed fo
 - **Scalable Design**:
   - UUIDs for all IDs to ensure uniqueness and scalability in distributed systems.
   - Many-to-many user-role relationships via a `UserRole` table.
-  - Redis for OTP storage with 5-minute TTL for security and efficiency.
+  - Redis for OTP storage with configurable TTL for security and efficiency.
+  - Connection pooling for database operations.
 - **KISS Principle**:
-  - Minimal dependencies and straightforward codebase.
+ - Minimal dependencies and straightforward codebase.
+  - Centralized configuration management.
   - Mock SMS service for development (logs OTPs to console).
 - **Best Practices**:
   - Pydantic V2 for input validation.
   - SQLModel for ORM with PostgreSQL.
   - Async endpoints for performance.
-  - Pre-commit hooks for code quality (Ruff, isort).
+ - Pre-commit hooks for code quality (Ruff, isort).
+  - Comprehensive health checks.
 - **Testing**:
   - Comprehensive test suite with pytest and pytest-asyncio.
   - Coverage reporting with pytest-cov.
+
+## Configuration
+
+The application uses a centralized configuration system via the `src/config.py` module. Key configuration variables:
+
+- `APP_NAME`: Application name
+- `DEBUG`: Enable debug mode
+- `SECRET_KEY`: JWT secret key (required)
+- `ADMIN_SECRET_KEY`: Secret key for creating admin users
+- `ACCESS_TOKEN_EXPIRE_MINUTES`: JWT expiration time
+- `OTP_EXPIRE_MINUTES`: OTP expiration time
+- `DATABASE_URL`: Database connection string
+- `REDIS_URL`: Redis connection string
+- `ALLOWED_ORIGINS`: Comma-separated list of allowed origins for CORS
+- `ENV`: Environment (development/production)
+- `SMS_SERVICE_TYPE`: Type of SMS service to use (mock, twilio, etc.)
 
 ## Prerequisites
 
@@ -96,36 +115,56 @@ FastForge is a lightweight, secure, and scalable FastAPI boilerplate designed fo
 
 ### Authentication Endpoints
 
-1. **Register**:
-   - Endpoint: `POST /auth/register`
-   - Body: `{"phone_number": "+1234567890", "password": "mypassword"}`
-   - Response: `{"message": "OTP sent", "phone_number": "+1234567890"}`
+1. **Request OTP**:
+   - Endpoint: `POST /auth/request-otp`
+   - Body: `{"phone_number": "+1234567890"}`
+   - Response: `{"message": "OTP sent for login or registration"}`
    - OTP is logged to console (or Docker logs: `docker-compose logs app`).
 
-2. **Verify OTP (Register)**:
-   - Endpoint: `POST /auth/verify-otp`
-   - Body: `{"phone_number": "+1234567890", "otp": "123456"}`
-   - Response: `{"access_token": "<jwt>", "token_type": "bearer"}`
-
-3. **Login**:
-   - **With Password**:
-     - Endpoint: `POST /auth/login`
-     - Body: `{"phone_number": "+1234567890", "password": "mypassword"}`
-     - Response: `{"access_token": "<jwt>", "token_type": "bearer"}`
-   - **With OTP**:
-     - Endpoint: `POST /auth/login`
-     - Body: `{"phone_number": "+1234567890"}`
-     - Response: `{"message": "OTP sent"}`
-     - Check logs for OTP.
-
-4. **Verify OTP (Login)**:
+2. **Login with OTP**:
    - Endpoint: `POST /auth/verify-login-otp`
-   - Body: `{"phone_number": "+1234567890", "otp": "123456"}`
+   - Body: `{"phone_number": "+1234567890", "otp": "123456", "email": "user@example.com"}` (email is optional)
    - Response: `{"access_token": "<jwt>", "token_type": "bearer"}`
 
-5. **Health Check**:
-   - Endpoint: `GET /health`
-   - Response: `{"status": "ok"}`
+3. **Login with Password** (if password is set):
+   - Endpoint: `POST /auth/login`
+   - Body: `{"username": "+1234567890", "password": "mypassword"}`
+   - Response: `{"access_token": "<jwt>", "token_type": "bearer"}`
+
+4. **Health Check**:
+   - Basic: `GET /health` - Response: `{"status": "ok"}`
+   - Extended: `GET /health/extended` - Response: Detailed health status with database and Redis connectivity
+
+### User Management Endpoints
+
+1. **Get Current User**:
+   - Endpoint: `GET /users/me`
+   - Requires: Valid JWT token
+   - Response: Current user's information
+
+2. **Update Current User**:
+   - Endpoint: `PUT /users/me`
+   - Requires: Valid JWT token
+   - Body: User update information
+
+3. **Delete Current User**:
+   - Endpoint: `DELETE /users/me`
+   - Requires: Valid JWT token
+
+4. **Get User by ID** (Admin only):
+   - Endpoint: `GET /users/{user_id}`
+   - Requires: Valid JWT token with admin role
+
+### Role Management Endpoints (Admin only)
+
+1. **List Roles**:
+   - Endpoint: `GET /roles/`
+   - Requires: Valid JWT token with admin role
+
+2. **Create Role**:
+   - Endpoint: `POST /roles/`
+   - Requires: Valid JWT token with admin role
+   - Body: `{"name": "new_role_name"}`
 
 ### Finding OTPs
 - OTPs are logged by the `MockSMSService`:
@@ -136,18 +175,23 @@ FastForge is a lightweight, secure, and scalable FastAPI boilerplate designed fo
 ### Example Commands
 
 ```bash
-# Register
-curl -X POST "http://localhost:8000/auth/register" -H "Content-Type: application/json" -d '{"phone_number": "+1234567890", "password": "mypassword"}'
+# Request OTP for login or registration
+curl -X POST "http://localhost:8000/auth/request-otp" -H "Content-Type: application/json" -d '{"phone_number": "+1234567890"}'
 
-# Verify OTP
-curl -X POST "http://localhost:8000/auth/verify-otp" -H "Content-Type: application/json" -d '{"phone_number": "+1234567890", "otp": "123456"}'
-
-# Login with Password
-curl -X POST "http://localhost:8000/auth/login" -H "Content-Type: application/json" -d '{"phone_number": "+1234567890", "password": "mypassword"}'
-
-# Login with OTP
-curl -X POST "http://localhost:8000/auth/login" -H "Content-Type: application/json" -d '{"phone_number": "+1234567890"}'
+# Verify OTP and get JWT token
 curl -X POST "http://localhost:8000/auth/verify-login-otp" -H "Content-Type: application/json" -d '{"phone_number": "+1234567890", "otp": "123456"}'
+
+# Login with password (if password is set)
+curl -X POST "http://localhost:8000/auth/login" -H "Content-Type: application/x-www-form-urlencoded" -d 'username=+1234567890&password=mypassword'
+
+# Get current user info (requires JWT token)
+curl -X GET "http://localhost:8000/users/me" -H "Authorization: Bearer <your-jwt-token>"
+
+# Health check
+curl -X GET "http://localhost:8000/health"
+
+# Extended health check
+curl -X GET "http://localhost:8000/health/extended"
 ```
 
 ## Testing
@@ -169,23 +213,32 @@ curl -X POST "http://localhost:8000/auth/verify-login-otp" -H "Content-Type: app
 fastforge/
 ├── src/
 │   ├── __init__.py
-│   ├── main.py           # FastAPI app and endpoints
-│   ├── auth.py           # Authentication logic (OTP, JWT, password)
+│   ├── main.py           # FastAPI app, health checks and main configuration
+│   ├── auth.py           # Authentication logic and helper functions (OTP, JWT, password)
 │   ├── database.py       # Database configuration
-│   ├── sms_service.py    # Mock SMS service
+│   ├── sms_service.py    # SMS service interface and implementations
+│   ├── config.py         # Centralized configuration management
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── user.py       # User model with UUID
 │   │   ├── role.py       # Role and UserRole models
+│   ├── routes/
+│   │   ├── __init__.py
+│   │   ├── auth.py       # Authentication endpoints (OTP, JWT, password)
+│   │   ├── users.py      # User management endpoints
+│   │   ├── roles.py      # Role management endpoints
 ├── migrations/            # Alembic migrations
 ├── tests/
 │   ├── test_auth.py      # Authentication tests
+│   ├── test_health.py    # Health check tests
 ├── .env                  # Environment variables
+├── .env.example          # Example environment variables
 ├── pyproject.toml        # Dependencies
 ├── uv.lock               # Locked dependencies
 ├── Dockerfile            # Docker configuration
 ├── docker-compose.yml    # Docker Compose services
 ├── .pre-commit-config.yaml # Code quality hooks
+├── README.md             # Project documentation
 ```
 
 ## Dependencies
