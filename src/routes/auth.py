@@ -5,8 +5,9 @@ This module contains all authentication-related API endpoints such as
 OTP requests, user login, and token verification.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
+import redis
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
@@ -16,9 +17,14 @@ from sqlmodel import Session, select
 
 from ..auth import (
     create_access_token,
+    create_refresh_token,
+    generate_otp,
+    get_current_user,
     send_login_otp,
+    store_refresh_token,
     validate_phone_number,
     verify_otp_and_create_user,
+    verify_otp_stored,
 )
 from ..config import Config
 from ..database import get_session
@@ -44,11 +50,12 @@ class VerifyOTPRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    token_type: str
+    refresh_token: str
+    token_type: str = "bearer"
 
 
 @router.post("/request-otp", tags=["auth"])
-@limiter.limit("5/minute")
+@limiter.limit("3/minute")
 async def request_otp(
     request: Request,
     data: OTPRequest,
@@ -79,8 +86,8 @@ async def request_otp(
     return send_login_otp(session, data.phone_number, sms_service)
 
 
-@router.post("/login", tags=["auth"])
-@limiter.limit("5/minute")
+@router.post("/login", response_model=TokenResponse, tags=["auth"])
+@limiter.limit("3/minute")
 async def authenticate_user_with_otp(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -88,19 +95,20 @@ async def authenticate_user_with_otp(
 ):
     """
     Authenticate user with OTP and return JWT token.
+    Supports both phone number and email login if user has added an email.
 
     Args:
         request: The incoming HTTP request
-        form_data: OAuth2 password form data (phone as username, OTP as password)
+        form_data: OAuth2 password form data (phone/email as username, OTP as password)
         session: Database session dependency
 
     Returns:
-        A dictionary with access token and token type
+        A dictionary with access token, refresh token and token type
 
     Raises:
         HTTPException: If OTP is invalid or phone number format is invalid
     """
-    phone_number = form_data.username
+    identifier = form_data.username
     otp_code = form_data.password
     # No password/OTP: send OTP
     if not otp_code:
@@ -109,21 +117,47 @@ async def authenticate_user_with_otp(
             detail="OTP required; use POST /auth/request-otp first",
         )
 
-    # Validate phone number format
-    if not validate_phone_number(phone_number):
+    # Check if identifier is a phone number or email
+    if validate_phone_number(identifier):
+        # Login with phone number
+        user = verify_otp_and_create_user(session, identifier, otp_code)
+        token_subject = user.phone_number
+    elif "@" in identifier and "." in identifier:
+        # Login with email - find user by email and verify OTP
+        user = session.exec(select(User).where(User.email == identifier)).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+            )
+
+        # Verify OTP for the user's phone number (the primary identifier)
+        if not verify_otp_stored(user.phone_number, otp_code):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP"
+            )
+        token_subject = user.phone_number
+    else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid phone number format",
+            detail="Invalid phone number or email format",
         )
 
-    # Verify OTP and create user if needed
-    user = verify_otp_and_create_user(session, phone_number, otp_code)
-    access_token = create_access_token(data={"sub": user.phone_number})
-    return {"access_token": access_token, "token_type": "bearer"}
+    # Generate tokens
+    access_token = create_access_token(data={"sub": token_subject})
+    refresh_token = create_refresh_token()
+
+    # Store the refresh token in the user record
+    store_refresh_token(user, refresh_token, session)
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+    }
 
 
 @router.post("/verify-login-otp", response_model=TokenResponse, tags=["auth"])
-@limiter.limit("5/minute")
+@limiter.limit("3/minute")
 async def verify_login_otp(
     request: Request, data: VerifyOTPRequest, session: Session = Depends(get_session)
 ):
@@ -136,7 +170,7 @@ async def verify_login_otp(
         session: Database session dependency
 
     Returns:
-        A dictionary with access token and token type
+        A dictionary with access token, refresh token and token type
 
     Raises:
         HTTPException: If OTP is invalid or phone number format is invalid
@@ -148,8 +182,19 @@ async def verify_login_otp(
             detail="Invalid phone number format",
         )
     user = verify_otp_and_create_user(session, data.phone_number, data.otp, data.email)
+
+    # Generate tokens
     access_token = create_access_token(data={"sub": user.phone_number})
-    return {"access_token": access_token, "token_type": "bearer"}
+    refresh_token = create_refresh_token()
+
+    # Store the refresh token in the user record
+    store_refresh_token(user, refresh_token, session)
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+    }
 
 
 @router.post("/create-admin")
@@ -204,3 +249,172 @@ async def create_admin_user(
     session.add(user_role)
     session.commit()
     return {"message": "Admin created"}
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/refresh", response_model=TokenResponse, tags=["auth"])
+@limiter.limit("10/minute")
+async def refresh_access_token(
+    request: Request,
+    data: RefreshTokenRequest,
+    session: Session = Depends(get_session),
+):
+    """
+    Refresh access token using a valid refresh token.
+
+    Args:
+        request: The incoming HTTP request
+        data: The refresh token request data containing the refresh token
+        session: Database session dependency
+
+    Returns:
+        A dictionary with new access token, new refresh token and token type
+
+    Raises:
+        HTTPException: If refresh token is invalid or user not found
+    """
+    # Find user by refresh token
+    user = session.exec(
+        select(User).where(User.refresh_token == data.refresh_token)
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+        )
+
+    # Generate new tokens using phone number as the subject
+    access_token = create_access_token(data={"sub": user.phone_number})
+    new_refresh_token = create_refresh_token()
+
+    # Update the refresh token in the user record
+    store_refresh_token(user, new_refresh_token, session)
+
+    return {
+        "access_token": access_token,
+        "refresh_token": new_refresh_token,
+        "token_type": "bearer",
+    }
+
+
+class UpdateEmailRequest(BaseModel):
+    email: EmailStr
+
+
+class VerifyEmailRequest(BaseModel):
+    verification_code: str
+
+
+@router.post("/update-email", tags=["auth"])
+@limiter.limit("3/minute")
+async def update_user_email(
+    request: Request,
+    update_email_request: UpdateEmailRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """
+    Update the user's email address.
+
+    Args:
+        request: The incoming HTTP request
+        update_email_request: The request containing the new email address
+        current_user: The currently authenticated user
+        session: Database session dependency
+
+    Returns:
+        A dictionary with a success message
+
+    Raises:
+        HTTPException: If email is already registered to another user
+    """
+    # Check if email is already registered to another user
+    existing_user = session.exec(
+        select(User).where(User.email == update_email_request.email)
+    ).first()
+
+    if existing_user and existing_user.id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered to another user",
+        )
+
+    # Update the user's email
+    current_user.email = update_email_request.email
+    current_user.is_email_verified = False  # Email needs to be verified
+    current_user.updated_at = datetime.now(tz=timezone.utc)  # Update timestamp
+    session.add(current_user)
+    session.commit()
+
+    # Generate verification code and store it in Redis
+    verification_code = (
+        generate_otp()
+    )  # Reusing the OTP function for email verification
+    redis_client = redis.Redis.from_url(Config.REDIS_URL, decode_responses=True)
+    redis_client.setex(
+        f"email_verification:{update_email_request.email}",
+        timedelta(minutes=Config.OTP_EXPIRE_MINUTES),
+        verification_code,
+    )
+
+    # In a real application, you would send the code via email here
+    # For now, we'll just return a success message
+    # In development, we'll print the code so it can be used for testing
+    print(
+        f"Email verification code for {update_email_request.email}: {verification_code}"
+    )
+
+    return {"message": "Email updated. Verification code sent to email."}
+
+
+@router.post("/verify-email", tags=["auth"])
+@limiter.limit("3/minute")
+async def verify_user_email(
+    request: Request,
+    verify_email_request: VerifyEmailRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """
+    Verify the user's email address with the provided code.
+
+    Args:
+        request: The incoming HTTP request
+        verify_email_request: The request containing the verification code
+        current_user: The currently authenticated user
+        session: Database session dependency
+
+    Returns:
+        A dictionary with a success message
+
+    Raises:
+        HTTPException: If verification code is invalid
+    """
+    if not current_user.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No email address to verify",
+        )
+
+    # Check the verification code in Redis
+    redis_client = redis.Redis.from_url(Config.REDIS_URL, decode_responses=True)
+    stored_code = redis_client.get(f"email_verification:{current_user.email}")
+
+    if not stored_code or stored_code != verify_email_request.verification_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid verification code",
+        )
+
+    # Verification successful, update user status and remove the code from Redis
+    current_user.is_email_verified = True
+    current_user.updated_at = datetime.now(tz=timezone.utc)  # Update timestamp
+    session.add(current_user)
+    session.commit()
+    redis_client.delete(f"email_verification:{current_user.email}")
+
+    return {"message": "Email verified successfully"}

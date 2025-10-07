@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13,<4.0"
 dependencies = [
     "alembic>=1.16.5,<2.0.0",
-    "argon2-cffi>=25.1.0,<26.0.0",
+    "email-validator>=2.2.0,<3.0.0",
     "fastapi[standard]>=0.116,<1.0.0",
     "psycopg[binary]>=3.2.10,<4.0.0",
     "pytest>=8.4.2,<9.0.0",

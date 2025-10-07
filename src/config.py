@@ -27,9 +27,8 @@ class Config:
     # Database settings
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        f"postgresql+psycopg://{os.getenv('POSTGRES_USER', 'postgres')}:{os.getenv('POSTGRES_PASSWORD', 'password')}@{os.getenv('DB_HOST', 'localhost')}:{os.getenv('DB_PORT', '5432')}/{os.getenv('POSTGRES_DB', 'fastforge')}",
+        f"postgresql+psycopg://{os.getenv('POSTGRES_USER', 'postgres')}:{os.getenv('POSTGRES_PASSWORD', 'password')}@{os.getenv('DB_HOST', 'db')}:{os.getenv('DB_PORT', '5432')}/{os.getenv('POSTGRES_DB', 'fastforge')}",
     )
-    DOCKER_ENV: bool = os.getenv("DOCKER_ENV", "false").lower() == "true"
 
     # Redis settings
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")

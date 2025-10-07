@@ -1,11 +1,10 @@
 """Authentication utilities and helper functions."""
 
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 import redis
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -19,15 +18,90 @@ from .sms_service import MockSMSService
 ALGORITHM = "HS256"
 SECRET_KEY = Config.SECRET_KEY
 
-ph = PasswordHasher()
-
 # Use OAuth2PasswordBearer for simple username/password input in Swagger UI
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/auth/login",
-    description="Enter phone number as username and OTP (from POST /auth/request-otp logs) as password. New users are created automatically, with 'user' role.",
+    description="Enter phone number or email as username and OTP (from POST /auth/request-otp logs) as password. New users are created automatically, with 'user' role.",
 )
 
 redis_client = redis.Redis.from_url(Config.REDIS_URL, decode_responses=True)
+
+# OTP attempt limiting constants
+MAX_OTP_ATTEMPTS = 3
+OTP_ATTEMPT_WINDOW = 15  # minutes
+
+
+def increment_otp_attempts(phone_number: str) -> int:
+    """
+    Increment the OTP attempt counter for a phone number.
+
+    Args:
+        phone_number: The phone number to track attempts for
+
+    Returns:
+        The current attempt count
+    """
+    key = f"otp_attempts:{phone_number}"
+    current_count = redis_client.get(key)
+
+    if current_count is None:
+        # First attempt, set counter with expiration
+        redis_client.setex(key, timedelta(minutes=OTP_ATTEMPT_WINDOW), "1")
+        return 1
+    else:
+        count = int(current_count) + 1
+        # Update the counter but keep the same expiration window
+        redis_client.setex(key, timedelta(minutes=OTP_ATTEMPT_WINDOW), str(count))
+        return count
+
+
+def get_otp_attempts_remaining(phone_number: str) -> int:
+    """
+    Get the number of remaining OTP attempts for a phone number.
+
+    Args:
+        phone_number: The phone number to check
+
+    Returns:
+        The number of attempts remaining
+    """
+    key = f"otp_attempts:{phone_number}"
+    current_count = redis_client.get(key)
+
+    if current_count is None:
+        return MAX_OTP_ATTEMPTS
+    else:
+        return max(0, MAX_OTP_ATTEMPTS - int(current_count))
+
+
+def is_otp_attempt_limited(phone_number: str) -> bool:
+    """
+    Check if a phone number has exceeded the maximum OTP attempts.
+
+    Args:
+        phone_number: The phone number to check
+
+    Returns:
+        True if the phone number is currently limited, False otherwise
+    """
+    key = f"otp_attempts:{phone_number}"
+    current_count = redis_client.get(key)
+
+    if current_count is None:
+        return False
+    else:
+        return int(current_count) > MAX_OTP_ATTEMPTS
+
+
+def reset_otp_attempts(phone_number: str) -> None:
+    """
+    Reset the OTP attempt counter for a phone number (e.g., after successful verification).
+
+    Args:
+        phone_number: The phone number to reset attempts for
+    """
+    key = f"otp_attempts:{phone_number}"
+    redis_client.delete(key)
 
 
 def generate_otp() -> str:
@@ -37,9 +111,9 @@ def generate_otp() -> str:
     Returns:
         A 6-character string containing random digits
     """
-    import random
+    import secrets
 
-    return "".join(random.choices("0123456789", k=6))
+    return "".join(secrets.choice("0123456789") for _ in range(6))
 
 
 def store_otp(phone_number: str, otp: str) -> None:
@@ -57,7 +131,7 @@ def store_otp(phone_number: str, otp: str) -> None:
 
 def verify_otp_stored(phone_number: str, otp: str) -> bool:
     """
-    Verify OTP from Redis.
+    Verify OTP from Redis with attempt limiting.
 
     Args:
         phone_number: The phone number associated with the OTP
@@ -66,41 +140,20 @@ def verify_otp_stored(phone_number: str, otp: str) -> bool:
     Returns:
         True if OTP is valid and exists, False otherwise
     """
+    # Check if the phone number has exceeded the maximum attempts
+    if is_otp_attempt_limited(phone_number):
+        return False
+
+    # Increment the attempt counter
+    increment_otp_attempts(phone_number)
+
     stored_otp = redis_client.get(f"otp:{phone_number}")
     if stored_otp and stored_otp == otp:
+        # OTP is correct, delete both the OTP and reset attempts
         redis_client.delete(f"otp:{phone_number}")
+        reset_otp_attempts(phone_number)  # Reset attempt counter on success
         return True
     return False
-
-
-def hash_password(password: str) -> str:
-    """
-    Hash a password using Argon2.
-
-    Args:
-        password: The plain text password to hash
-
-    Returns:
-        The hashed password
-    """
-    return ph.hash(password)
-
-
-def verify_password(hashed_password: str, password: str) -> bool:
-    """
-    Verify a password against its Argon2 hash.
-
-    Args:
-        hashed_password: The stored hashed password
-        password: The plain text password to verify
-
-    Returns:
-        True if password matches the hash, False otherwise
-    """
-    try:
-        return ph.verify(hashed_password, password)
-    except VerifyMismatchError:
-        return False
 
 
 def create_access_token(data: dict) -> str:
@@ -241,7 +294,7 @@ def verify_otp_and_create_user(
             )
         user = User(
             phone_number=phone_number,
-            hashed_password=None,  # Password can be set later via /users/me
+            is_phone_verified=True,  # Phone number is verified via OTP
             email=email,
         )
         session.add(user)
@@ -257,6 +310,14 @@ def verify_otp_and_create_user(
         user_role_link = UserRole(user_id=user.id, role_id=user_role.id)
         session.add(user_role_link)
         session.commit()
+    else:
+        # If user exists but phone isn't verified, mark it as verified
+        if not user.is_phone_verified:
+            user.is_phone_verified = True
+            user.updated_at = datetime.now(tz=timezone.utc)  # Update timestamp
+            session.add(user)
+            session.commit()
+            session.refresh(user)
     return user
 
 
@@ -278,6 +339,59 @@ def send_login_otp(
     store_otp(phone_number, otp)
     sms_service.send_otp(phone_number, otp)
     return {"message": "OTP sent for login or registration"}
+
+
+def create_refresh_token() -> str:
+    """
+    Create a cryptographically secure refresh token.
+
+    Returns:
+        A secure refresh token string
+    """
+    return secrets.token_urlsafe(32)
+
+
+def store_refresh_token(user: User, refresh_token: str, session: Session) -> None:
+    """
+    Store the refresh token in the user record.
+
+    Args:
+        user: The user object
+        refresh_token: The refresh token to store
+        session: Database session dependency
+    """
+    user.refresh_token = refresh_token
+    user.updated_at = datetime.now(tz=timezone.utc)  # Update timestamp
+    session.add(user)
+    session.commit()
+
+
+def verify_refresh_token(user: User, refresh_token: str) -> bool:
+    """
+    Verify if the provided refresh token matches the stored one.
+
+    Args:
+        user: The user object
+        refresh_token: The refresh token to verify
+
+    Returns:
+        True if the refresh token is valid, False otherwise
+    """
+    return user.refresh_token is not None and user.refresh_token == refresh_token
+
+
+def revoke_refresh_token(user: User, session: Session) -> None:
+    """
+    Revoke the refresh token by clearing it from the user record.
+
+    Args:
+        user: The user object
+        session: Database session dependency
+    """
+    user.refresh_token = None
+    user.updated_at = datetime.now(tz=timezone.utc)  # Update timestamp
+    session.add(user)
+    session.commit()
 
 
 def validate_phone_number(phone_number: str) -> bool:

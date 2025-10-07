@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
 
-from ..auth import get_current_user, hash_password, role_required, validate_phone_number
+from ..auth import get_current_user, role_required, validate_phone_number
 from ..database import get_session
 from ..models.user import Role, User, UserRole
 
@@ -101,8 +101,6 @@ async def update_current_user(
         current_user.phone_number = user_update.phone_number
     if user_update.email is not None:
         current_user.email = user_update.email
-    if user_update.password:
-        current_user.hashed_password = hash_password(user_update.password)
 
     # Role updates (admin only)
     if user_update.roles and "admin" not in [role.name for role in current_user.roles]:

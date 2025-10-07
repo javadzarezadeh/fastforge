@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
-from pydantic import StringConstraints
+from pydantic import EmailStr, StringConstraints
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -23,8 +23,10 @@ class User(SQLModel, table=True):
     phone_number: Annotated[str, StringConstraints(pattern=r"^\+?[1-9]\d{1,14}$")] = (
         Field(unique=True, index=True)
     )
-    email: str | None = Field(default=None, unique=True, index=True)
-    hashed_password: str | None = None
+    email: EmailStr | None = Field(default=None, unique=True, index=True)
+    is_phone_verified: bool = Field(default=False)
+    is_email_verified: bool = Field(default=False)
+    refresh_token: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
-    updated_at: str | None = None
+    updated_at: datetime | None = Field(default=None)
     roles: list["Role"] = Relationship(back_populates="users", link_model=UserRole)

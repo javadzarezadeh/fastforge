@@ -29,7 +29,6 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-fastforge}}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - DOCKER_ENV=1
     depends_on:
       db:
         condition: service_healthy
