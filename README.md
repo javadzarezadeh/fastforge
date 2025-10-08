@@ -8,6 +8,9 @@ FastForge is a lightweight, secure, and scalable FastAPI boilerplate designed fo
   - Phone-based registration and login with 6-digit OTPs (custom-generated, no external TOTP libraries).
   - Password authentication using Argon2 for hashing.
   - JWT tokens for session management with configurable expiration.
+  - Refresh token support for extended sessions with automatic rotation.
+  - OTP attempt limiting (max 3 attempts per 15 minutes window) to prevent brute force attacks.
+  - Support for both phone number and email authentication.
 - **Scalable Design**:
   - UUIDs for all IDs to ensure uniqueness and scalability in distributed systems.
   - Many-to-many user-role relationships via a `UserRole` table.
@@ -23,6 +26,7 @@ FastForge is a lightweight, secure, and scalable FastAPI boilerplate designed fo
   - Async endpoints for performance.
  - Pre-commit hooks for code quality (Ruff, isort).
   - Comprehensive health checks.
+  - Rate limiting on authentication endpoints (3 requests per minute).
 - **Testing**:
   - Comprehensive test suite with pytest and pytest-asyncio.
   - Coverage reporting with pytest-cov.
@@ -118,17 +122,35 @@ The application uses a centralized configuration system via the `src/config.py` 
    - Response: `{"message": "OTP sent for login or registration"}`
    - OTP is logged to console (or Docker logs: `docker-compose logs app`).
 
-2. **Login with OTP**:
+2. **Login with OTP** (using form data):
+   - Endpoint: `POST /auth/login`
+   - Body: `{"username": "+1234567890", "password": "123456"}` (phone number as username, OTP as password)
+   - Response: `{"access_token": "<jwt>", "refresh_token": "<refresh_token>", "token_type": "bearer"}`
+   - Supports both phone number and email login if user has added an email
+
+3. **Verify Login OTP** (using JSON):
    - Endpoint: `POST /auth/verify-login-otp`
    - Body: `{"phone_number": "+1234567890", "otp": "123456", "email": "user@example.com"}` (email is optional)
-   - Response: `{"access_token": "<jwt>", "token_type": "bearer"}`
+   - Response: `{"access_token": "<jwt>", "refresh_token": "<refresh_token>", "token_type": "bearer"}`
 
-3. **Login with Password** (if password is set):
-   - Endpoint: `POST /auth/login`
-   - Body: `{"username": "+1234567890", "password": "mypassword"}`
-   - Response: `{"access_token": "<jwt>", "token_type": "bearer"}`
+4. **Refresh Access Token**:
+   - Endpoint: `POST /auth/refresh`
+   - Body: `{"refresh_token": "<refresh_token>"}`
+   - Response: `{"access_token": "<new_jwt>", "refresh_token": "<new_refresh_token>", "token_type": "bearer"}`
 
-4. **Health Check**:
+5. **Update User Email**:
+   - Endpoint: `POST /auth/update-email`
+   - Requires: Valid JWT token
+   - Body: `{"email": "user@example.com"}`
+   - Response: `{"message": "Email updated. Verification code sent to email."}`
+
+6. **Verify User Email**:
+   - Endpoint: `POST /auth/verify-email`
+   - Requires: Valid JWT token
+   - Body: `{"verification_code": "123456"}`
+   - Response: `{"message": "Email verified successfully"}`
+
+7. **Health Check**:
    - Basic: `GET /health` - Response: `{"status": "ok"}`
    - Extended: `GET /health/extended` - Response: Detailed health status with database and Redis connectivity
 
@@ -175,11 +197,20 @@ The application uses a centralized configuration system via the `src/config.py` 
 # Request OTP for login or registration
 curl -X POST "http://localhost:8000/auth/request-otp" -H "Content-Type: application/json" -d '{"phone_number": "+1234567890"}'
 
-# Verify OTP and get JWT token
+# Verify OTP and get JWT token (using JSON)
 curl -X POST "http://localhost:8000/auth/verify-login-otp" -H "Content-Type: application/json" -d '{"phone_number": "+1234567890", "otp": "123456"}'
 
-# Login with password (if password is set)
-curl -X POST "http://localhost:8000/auth/login" -H "Content-Type: application/x-www-form-urlencoded" -d 'username=+1234567890&password=mypassword'
+# Login with OTP (using form data) - supports both phone and email login
+curl -X POST "http://localhost:8000/auth/login" -H "Content-Type: application/x-www-form-urlencoded" -d 'username=+1234567890&password=123456'
+
+# Refresh access token
+curl -X POST "http://localhost:8000/auth/refresh" -H "Content-Type: application/json" -d '{"refresh_token": "your-refresh-token-here"}'
+
+# Update user email (requires JWT token)
+curl -X POST "http://localhost:8000/auth/update-email" -H "Content-Type: application/json" -H "Authorization: Bearer <your-jwt-token>" -d '{"email": "user@example.com"}'
+
+# Verify user email (requires JWT token)
+curl -X POST "http://localhost:8000/auth/verify-email" -H "Content-Type: application/json" -H "Authorization: Bearer <your-jwt-token>" -d '{"verification_code": "123456"}'
 
 # Get current user info (requires JWT token)
 curl -X GET "http://localhost:8000/users/me" -H "Authorization: Bearer <your-jwt-token>"
