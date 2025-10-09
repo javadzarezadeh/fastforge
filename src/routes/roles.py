@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from ..auth import role_required
@@ -50,7 +50,9 @@ async def create_new_role(
         HTTPException: If role already exists
     """
     if session.exec(select(Role).where(Role.name == name)).first():
-        raise HTTPException(status_code=400, detail="Role already exists")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Role already exists"
+        )
     role = Role(name=name, description=description)
     session.add(role)
     session.commit()

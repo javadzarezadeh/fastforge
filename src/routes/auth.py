@@ -18,9 +18,13 @@ from sqlmodel import Session, select
 from ..auth import (
     create_access_token,
     create_refresh_token,
+    delete_phone_change_request,
     generate_otp,
     get_current_user,
+    get_phone_change_request,
     send_login_otp,
+    store_otp,
+    store_phone_change_request,
     store_refresh_token,
     validate_phone_number,
     verify_otp_and_create_user,
@@ -216,7 +220,9 @@ async def create_admin_user(
                        or an admin user already exists
     """
     if secret_key != Config.ADMIN_SECRET_KEY:
-        raise HTTPException(status_code=403, detail="Invalid secret key")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid secret key"
+        )
 
     # Check if any admin user already exists
     existing_admin = session.exec(
@@ -231,7 +237,9 @@ async def create_admin_user(
 
     user = session.exec(select(User).where(User.phone_number == phone_number)).first()
     if user:
-        raise HTTPException(status_code=400, detail="User already exists")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists"
+        )
     user = User(
         phone_number=phone_number, email=None, created_at=datetime.now(tz=timezone.utc)
     )
@@ -418,3 +426,122 @@ async def verify_user_email(
     redis_client.delete(f"email_verification:{current_user.email}")
 
     return {"message": "Email verified successfully"}
+
+
+class UpdatePhoneNumberRequest(BaseModel):
+    phone_number: str
+
+
+class VerifyPhoneNumberRequest(BaseModel):
+    verification_code: str
+
+
+@router.post("/update-phone-number", tags=["auth"])
+@limiter.limit("3/minute")
+async def request_phone_number_change(
+    request: Request,
+    update_phone_request: UpdatePhoneNumberRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+    sms_service: SMSService = Depends(get_sms_service),
+):
+    """
+    Request to update the user's phone number.
+
+    Args:
+        request: The incoming HTTP request
+        update_phone_request: The request containing the new phone number
+        current_user: The currently authenticated user
+        session: Database session dependency
+        sms_service: SMS service dependency
+
+    Returns:
+        A dictionary with a success message
+
+    Raises:
+        HTTPException: If phone number is already registered to another user
+    """
+    # Validate phone number format
+    if not validate_phone_number(update_phone_request.phone_number):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid phone number format",
+        )
+
+    # Check if phone number is already registered to another user
+    existing_user = session.exec(
+        select(User).where(User.phone_number == update_phone_request.phone_number)
+    ).first()
+
+    if existing_user and existing_user.id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phone number already registered to another user",
+        )
+
+    # Store the phone number change request in Redis
+    store_phone_change_request(str(current_user.id), update_phone_request.phone_number)
+
+    # Generate OTP and send it to the new phone number
+    otp = generate_otp()
+    store_otp(update_phone_request.phone_number, otp)
+    sms_service.send_otp(update_phone_request.phone_number, otp)
+
+    return {"message": "Verification code sent to new phone number"}
+
+
+@router.post("/verify-phone-number", tags=["auth"])
+@limiter.limit("3/minute")
+async def verify_phone_number_change(
+    request: Request,
+    verify_phone_request: VerifyPhoneNumberRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """
+    Verify the new phone number with the provided code and update it.
+
+    Args:
+        request: The incoming HTTP request
+        verify_phone_request: The request containing the verification code
+        current_user: The currently authenticated user
+        session: Database session dependency
+
+    Returns:
+        A dictionary with a success message
+
+    Raises:
+        HTTPException: If verification code is invalid or no phone number change request exists
+    """
+    # Get the requested phone number change
+    new_phone_number = get_phone_change_request(str(current_user.id))
+
+    if not new_phone_number:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No phone number change request found. Please request a change first.",
+        )
+
+    # Verify the OTP for the new phone number
+    if not verify_otp_stored(new_phone_number, verify_phone_request.verification_code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid verification code",
+        )
+
+    # Verification successful, update user's phone number
+    current_user.phone_number = new_phone_number
+    current_user.is_phone_verified = True  # New phone number is now verified
+    current_user.updated_at = datetime.now(tz=timezone.utc)  # Update timestamp
+    session.add(current_user)
+    session.commit()
+
+    # Delete the phone number change request
+    delete_phone_change_request(str(current_user.id))
+
+    # Revoke all refresh tokens to force re-authentication
+    current_user.refresh_token = None
+    session.add(current_user)
+    session.commit()
+
+    return {"message": "Phone number updated and verified successfully"}

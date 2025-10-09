@@ -66,14 +66,16 @@ async def update_current_user(
         HTTPException: If phone number or email is already registered,
                        or if non-admin tries to update roles
     """
-    if (
+    phone_number_changed = (
         user_update.phone_number
         and user_update.phone_number != current_user.phone_number
-    ):
+    )
+
+    if phone_number_changed:
         # Validate phone number format
         if not validate_phone_number(user_update.phone_number):
             raise HTTPException(
-                status_code=status.HTTP_40_BAD_REQUEST,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid phone number format",
             )
 
@@ -92,14 +94,20 @@ async def update_current_user(
         ).first()
         if existing_email:
             raise HTTPException(
-                status_code=status.HTTP_40_BAD_REQUEST,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered",
             )
 
     if user_update.phone_number:
         current_user.phone_number = user_update.phone_number
+        # If phone number changed, reset verification status
+        if phone_number_changed:
+            current_user.is_phone_verified = False
     if user_update.email is not None:
         current_user.email = user_update.email
+        # If email changed, reset verification status
+        if user_update.email != current_user.email:
+            current_user.is_email_verified = False
 
     # Role updates (admin only)
     if user_update.roles and "admin" not in [role.name for role in current_user.roles]:

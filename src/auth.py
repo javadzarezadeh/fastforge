@@ -404,3 +404,41 @@ def validate_phone_number(phone_number: str) -> bool:
     # Basic validation for international phone number format
     pattern = r"^\+?[1-9]\d{1,14}$"
     return bool(re.match(pattern, phone_number))
+
+
+def store_phone_change_request(user_id: str, new_phone_number: str) -> None:
+    """
+    Store a phone number change request in Redis.
+
+    Args:
+        user_id: The ID of the user requesting the change
+        new_phone_number: The new phone number to be verified
+    """
+    redis_client.setex(
+        f"phone_change_request:{user_id}",
+        timedelta(minutes=Config.OTP_EXPIRE_MINUTES),
+        new_phone_number,
+    )
+
+
+def get_phone_change_request(user_id: str) -> str | None:
+    """
+    Get the phone number change request for a user from Redis.
+
+    Args:
+        user_id: The ID of the user
+
+    Returns:
+        The new phone number if exists, None otherwise
+    """
+    return redis_client.get(f"phone_change_request:{user_id}")
+
+
+def delete_phone_change_request(user_id: str) -> None:
+    """
+    Delete the phone number change request for a user from Redis.
+
+    Args:
+        user_id: The ID of the user
+    """
+    redis_client.delete(f"phone_change_request:{user_id}")
