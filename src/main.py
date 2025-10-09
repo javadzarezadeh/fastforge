@@ -81,7 +81,6 @@ class HealthResponse(BaseModel):
 class LoginRequest(BaseModel):
     phone_number: str
     email: EmailStr | None = None
-    password: str = None
 
 
 @app.get("/health", response_model=HealthResponse, tags=["health"])

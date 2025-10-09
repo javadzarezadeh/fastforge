@@ -23,7 +23,6 @@ class UserResponse(BaseModel):
 class UserUpdate(BaseModel):
     phone_number: str | None = None
     email: EmailStr | None = None
-    password: str | None = None
     roles: list[str] | None = None
 
 
