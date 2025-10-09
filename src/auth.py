@@ -193,14 +193,12 @@ async def get_current_user(
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        phone_number: str = payload.get("sub")
-        if not phone_number:
+        user_id: str = payload.get("sub")
+        if not user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
             )
-        user = session.exec(
-            select(User).where(User.phone_number == phone_number)
-        ).first()
+        user = session.exec(select(User).where(User.id == user_id)).first()
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"

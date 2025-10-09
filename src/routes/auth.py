@@ -122,7 +122,6 @@ async def authenticate_user_with_otp(
     if validate_phone_number(identifier):
         # Login with phone number
         user = verify_otp_and_create_user(session, identifier, otp_code)
-        token_subject = user.phone_number
     elif "@" in identifier and "." in identifier:
         # Login with email - find user by email and verify OTP
         user = session.exec(select(User).where(User.email == identifier)).first()
@@ -136,7 +135,6 @@ async def authenticate_user_with_otp(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP"
             )
-        token_subject = user.phone_number
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -144,7 +142,7 @@ async def authenticate_user_with_otp(
         )
 
     # Generate tokens
-    access_token = create_access_token(data={"sub": token_subject})
+    access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = create_refresh_token()
 
     # Store the refresh token in the user record
@@ -185,7 +183,7 @@ async def verify_login_otp(
     user = verify_otp_and_create_user(session, data.phone_number, data.otp, data.email)
 
     # Generate tokens
-    access_token = create_access_token(data={"sub": user.phone_number})
+    access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = create_refresh_token()
 
     # Store the refresh token in the user record
@@ -288,8 +286,8 @@ async def refresh_access_token(
             detail="Invalid refresh token",
         )
 
-    # Generate new tokens using phone number as the subject
-    access_token = create_access_token(data={"sub": user.phone_number})
+    # Generate new tokens using user UUID as the subject
+    access_token = create_access_token(data={"sub": str(user.id)})
     new_refresh_token = create_refresh_token()
 
     # Update the refresh token in the user record
