@@ -2,7 +2,6 @@ import os
 
 os.environ["TESTING"] = "True"
 
-import os
 import sys
 
 from fastapi.testclient import TestClient

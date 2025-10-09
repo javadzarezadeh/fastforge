@@ -3,6 +3,7 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
+import redis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -10,8 +11,10 @@ from pydantic import BaseModel, EmailStr
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from sqlmodel import text
 
 from .config import Config
+from .database import engine
 from .routes.auth import router as auth_router
 from .routes.roles import router as roles_router
 from .routes.users import router as users_router
@@ -102,11 +105,6 @@ async def get_extended_health_status():
     Returns:
         dict: A dictionary with health status and checks for database and Redis
     """
-    import redis
-    from sqlmodel import text
-
-    from .database import engine
-
     health_status = {
         "status": "healthy",
         "checks": {"database": "ok", "redis": "ok"},

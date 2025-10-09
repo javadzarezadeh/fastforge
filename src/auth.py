@@ -1,5 +1,6 @@
 """Authentication utilities and helper functions."""
 
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Callable
@@ -111,8 +112,6 @@ def generate_otp() -> str:
     Returns:
         A 6-character string containing random digits
     """
-    import secrets
-
     return "".join(secrets.choice("0123456789") for _ in range(6))
 
 
@@ -402,8 +401,6 @@ def validate_phone_number(phone_number: str) -> bool:
     Returns:
         True if phone number format is valid, False otherwise
     """
-    import re
-
     # Basic validation for international phone number format
     pattern = r"^\+?[1-9]\d{1,14}$"
     return bool(re.match(pattern, phone_number))
