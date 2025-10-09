@@ -40,6 +40,11 @@ class Config:
     # SMS service settings
     SMS_SERVICE_TYPE: str = os.getenv("SMS_SERVICE_TYPE", "mock")  # mock, twilio, etc.
 
+    # Email service settings
+    EMAIL_SERVICE_TYPE: str = os.getenv(
+        "EMAIL_SERVICE_TYPE", "mock"
+    )  # mock only for now
+
     @classmethod
     def validate(cls):
         """Validate required configuration values"""

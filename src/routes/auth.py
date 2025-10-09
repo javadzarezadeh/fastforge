@@ -28,6 +28,7 @@ from ..auth import (
 )
 from ..config import Config
 from ..database import get_session
+from ..email_service import EmailService, get_email_service
 from ..models.user import Role, User, UserRole
 from ..sms_service import SMSService, get_sms_service
 
@@ -316,6 +317,7 @@ async def update_user_email(
     update_email_request: UpdateEmailRequest,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
+    email_service: EmailService = Depends(get_email_service),
 ):
     """
     Update the user's email address.
@@ -361,11 +363,11 @@ async def update_user_email(
         verification_code,
     )
 
-    # In a real application, you would send the code via email here
-    # For now, we'll just return a success message
-    # In development, we'll print the code so it can be used for testing
-    print(
-        f"Email verification code for {update_email_request.email}: {verification_code}"
+    # Use the email service to "send" the verification email
+    await email_service.send_email(
+        to_emails=[update_email_request.email],
+        subject="Email Verification Code",
+        body=f"Your verification code is: {verification_code}",
     )
 
     return {"message": "Email updated. Verification code sent to email."}
