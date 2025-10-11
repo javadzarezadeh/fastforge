@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
 
-from ..auth import get_current_user, role_required, validate_phone_number
+from ..auth import get_current_user, role_required
 from ..database import get_session
 from ..models.user import Role, User, UserRole
 
@@ -21,8 +21,6 @@ class UserResponse(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    phone_number: str | None = None
-    email: EmailStr | None = None
     roles: list[str] | None = None
 
 
@@ -53,6 +51,8 @@ async def update_current_user(
 ):
     """
     Update current user's information (non-admins can't change roles).
+    Note: Phone number and email updates must be done through the dedicated endpoints in auth.py
+    that include verification for security.
 
     Args:
         user_update: The user update data
@@ -63,51 +63,8 @@ async def update_current_user(
         UserResponse: The updated user's information
 
     Raises:
-        HTTPException: If phone number or email is already registered,
-                       or if non-admin tries to update roles
+        HTTPException: If non-admin tries to update roles
     """
-    phone_number_changed = (
-        user_update.phone_number
-        and user_update.phone_number != current_user.phone_number
-    )
-
-    if phone_number_changed:
-        # Validate phone number format
-        if not validate_phone_number(user_update.phone_number):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid phone number format",
-            )
-
-        existing_user = session.exec(
-            select(User).where(User.phone_number == user_update.phone_number)
-        ).first()
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Phone number already registered",
-            )
-
-    if user_update.email and user_update.email != current_user.email:
-        existing_email = session.exec(
-            select(User).where(User.email == user_update.email)
-        ).first()
-        if existing_email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered",
-            )
-
-    if user_update.phone_number:
-        current_user.phone_number = user_update.phone_number
-        # If phone number changed, reset verification status
-        if phone_number_changed:
-            current_user.is_phone_verified = False
-    if user_update.email is not None:
-        current_user.email = user_update.email
-        # If email changed, reset verification status
-        if user_update.email != current_user.email:
-            current_user.is_email_verified = False
 
     # Role updates (admin only)
     if user_update.roles and "admin" not in [role.name for role in current_user.roles]:
