@@ -401,8 +401,9 @@ def validate_phone_number(phone_number: str) -> bool:
     Returns:
         True if phone number format is valid, False otherwise
     """
-    # Basic validation for international phone number format
-    pattern = r"^\+?[1-9]\d{1,14}$"
+    # Enhanced validation for international phone number format
+    # Allows + followed by 1-15 digits, with the first digit being 1-9
+    pattern = r"^\+?[1-9]\d{0,14}$"
     return bool(re.match(pattern, phone_number))
 
 

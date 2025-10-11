@@ -461,7 +461,7 @@ async def request_phone_number_change(
     Raises:
         HTTPException: If phone number is already registered to another user
     """
-    # Validate phone number format
+    # Validate phone number format using the centralized validation function
     if not validate_phone_number(update_phone_request.phone_number):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

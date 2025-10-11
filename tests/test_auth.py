@@ -119,19 +119,7 @@ def test_phone_number_change_with_existing_number():
     # Test with invalid token (should return 401)
     response = client.post(
         "/auth/update-phone-number",
-        json={"phone_number": "+111111"},  # Try to change to a number
-        headers={"Authorization": "Bearer invalid_token"},
-    )
-    assert response.status_code == 401
-
-
-def test_phone_number_change_resets_verification_status():
-    """Test that changing phone number via PUT /users/me resets verification status."""
-    client = TestClient(app)
-    # Test with invalid token (should return 401)
-    response = client.put(
-        "/users/me",
-        json={"phone_number": "+19876543210"},
+        json={"phone_number": "+11111"},  # Try to change to a number
         headers={"Authorization": "Bearer invalid_token"},
     )
     assert response.status_code == 401

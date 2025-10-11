@@ -1,12 +1,11 @@
 # FastForge
 
-FastForge is a lightweight, secure, and scalable FastAPI boilerplate designed for rapid development of authentication-driven applications. It features a robust authentication system with phone-based OTP verification, password login, and role-based access control, built with modern Python tools and best practices.
+FastForge is a lightweight, secure, and scalable FastAPI boilerplate designed for rapid development of authentication-driven applications. It features a robust authentication system with phone-based OTP verification and role-based access control, built with modern Python tools and best practices.
 
 ## Features
 
 - **Secure Authentication**:
   - Phone-based registration and login with 6-digit OTPs (custom-generated, no external TOTP libraries).
-  - Password authentication using Argon2 for hashing.
   - JWT tokens for session management with configurable expiration.
   - Refresh token support for extended sessions with automatic rotation.
   - OTP attempt limiting (max 3 attempts per 15 minutes window) to prevent brute force attacks.
@@ -242,17 +241,17 @@ fastforge/
 ├── src/
 │   ├── __init__.py
 │   ├── main.py           # FastAPI app, health checks and main configuration
-│   ├── auth.py           # Authentication logic and helper functions (OTP, JWT, password)
+│   ├── auth.py           # Authentication logic and helper functions (OTP, JWT)
 │   ├── database.py       # Database configuration
 │   ├── sms_service.py    # SMS service interface and implementations
+│   ├── email_service.py # Email service interface and implementations
 │   ├── config.py         # Centralized configuration management
 │   ├── models/
 │   │   ├── __init__.py
-│   │   ├── user.py       # User model with UUID
-│   │   ├── role.py       # Role and UserRole models
+│   │   ├── user.py       # User, Role and UserRole models
 │   ├── routes/
 │   │   ├── __init__.py
-│   │   ├── auth.py       # Authentication endpoints (OTP, JWT, password)
+│   │   ├── auth.py       # Authentication endpoints (OTP, JWT)
 │   │   ├── users.py      # User management endpoints
 │   │   ├── roles.py      # Role management endpoints
 ├── migrations/            # Alembic migrations
@@ -275,7 +274,6 @@ fastforge/
 - **SQLModel**: ORM for PostgreSQL
 - **psycopg**: PostgreSQL driver
 - **redis**: OTP storage
-- **argon2-cffi**: Password hashing
 - **python-jose**: JWT handling
 - **pydantic**: Input validation
 - **alembic**: Database migrations
