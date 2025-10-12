@@ -1,41 +1,39 @@
-# FastForge
+# 🚀 FastForge
 
 FastForge is a lightweight, secure, and scalable FastAPI boilerplate designed for rapid development of authentication-driven applications. It features a robust authentication system with phone-based OTP verification and role-based access control, built with modern Python tools and best practices.
 
-## Features
+## ✨ Features
 
-- **Secure Authentication**:
-  - Phone-based registration and login with 6-digit OTPs (custom-generated, no external TOTP libraries).
+- **🔒 Secure Authentication**:
+  - Phone-based registration and login with 6-digit OTPs.
   - JWT tokens for session management with configurable expiration.
   - Refresh token support for extended sessions with automatic rotation.
-  - OTP attempt limiting (max 3 attempts per 15 minutes window) to prevent brute force attacks.
+  - OTP attempt limiting to prevent brute force attacks.
   - Support for both phone number and email authentication.
   - Phone number change functionality with OTP verification.
   - Email service with mock implementation and user email verification.
-- **Scalable Design**:
+- **📏 Scalable Design**:
   - UUIDs for all IDs to ensure uniqueness and scalability in distributed systems.
   - Many-to-many user-role relationships via a `UserRole` table.
   - Redis for OTP storage with configurable TTL for security and efficiency.
   - Connection pooling for database operations.
-- **KISS Principle**:
- - Minimal dependencies and straightforward codebase.
+- **🎯 KISS Principle**:
+  - Minimal dependencies and straightforward codebase.
   - Centralized configuration management.
   - Mock SMS service for development (logs OTPs to console).
-- **Best Practices**:
+- **✅ Best Practices**:
   - Pydantic V2 for input validation.
   - SQLModel for ORM with PostgreSQL.
   - Async endpoints for performance.
- - Pre-commit hooks for code quality (Ruff, isort).
+  - Pre-commit hooks for code quality (Ruff, isort).
   - Comprehensive health checks.
-  - Rate limiting on authentication endpoints (3 requests per minute).
-- **Additional Features**:
-  - Soft delete support for user accounts with identifier hashing for privacy
-  - Dynamic database configuration based on environment (RUNNING_IN_DOCKER variable)
-- **Testing**:
+- **⭐ Additional Features**:
+  - Soft delete support for user accounts with identifier hashing for privacy.
+- **🧪 Testing**:
   - Comprehensive test suite with pytest and pytest-asyncio.
   - Coverage reporting with pytest-cov.
 
-## Configuration
+## ⚙️ Configuration
 
 The application uses a centralized configuration system via the `src/config.py` module. Key configuration variables:
 
@@ -53,15 +51,15 @@ The application uses a centralized configuration system via the `src/config.py` 
 - `EMAIL_SERVICE_TYPE`: Type of email service to use (currently only mock is supported)
 - `RUNNING_IN_DOCKER`: Environment variable to indicate when running in Docker (automatically set in Dockerfile and docker-compose.yml)
 
-## Prerequisites
+## 🛠️ Prerequisites
 
-- **Python**: 3.12 or higher
-- **Docker**: Latest version with Docker Compose
-- **uv**: Package manager (included in Dockerfile)
-- **PostgreSQL**: For database (provided via Docker)
-- **Redis**: For OTP storage (provided via Docker)
+- **🐍 Python**: 3.13 or higher
+- **🐳 Docker**: Latest version with Docker Compose
+- **📦 uv**: Package manager (included in Dockerfile)
+- **🗄️ PostgreSQL**: For database (provided via Docker)
+- **💾 Redis**: For OTP storage (provided via Docker)
 
-## Setup
+## 🔧 Setup
 
 ### Local Setup
 
@@ -77,19 +75,7 @@ The application uses a centralized configuration system via the `src/config.py` 
    ```
 
 3. **Set Up Environment Variables**:
-   Create a `.env` file in the root directory:
-   ```env
-   APP_NAME="FastForge"
-   DEBUG=true
-   SECRET_KEY="your-secure-random-key-here"  # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
-   # Leave DATABASE_URL empty to allow dynamic configuration based on RUNNING_IN_DOCKER environment variable
-   DATABASE_URL=""
-   REDIS_URL="redis://localhost:6379/0"
-   LOG_LEVEL="INFO"
-   ALLOWED_ORIGINS="http://localhost:3000,https://myapp.com"
-   # The RUNNING_IN_DOCKER variable is automatically set to true in Docker environments
-   RUNNING_IN_DOCKER=false
-   ```
+   Create a `.env` file in the root directory. The `.env.example` is available as a blueprint.
 
 4. **Set Up PostgreSQL and Redis**:
    - Install PostgreSQL and Redis locally or use Docker (see below).
@@ -102,14 +88,14 @@ The application uses a centralized configuration system via the `src/config.py` 
 
 6. **Start the Application**:
    ```bash
-   uv run fastapi run src/main.py
+   uv run fastapi run src/main.py --port 8000 --host 0.0.0.0
    ```
 
 ### Docker Setup
 
 1. **Build and Run**:
    ```bash
-   docker-compose up --build
+   docker compose up --build
    ```
 
 2. **Run Migrations** (in a separate terminal):
@@ -121,135 +107,44 @@ The application uses a centralized configuration system via the `src/config.py` 
    - API: `http://localhost:8000`
    - Adminer (PostgreSQL UI): `http://localhost:8081`
 
-## Usage
+## 📖 Usage
 
-### Authentication Endpoints
+The API provides comprehensive documentation at the following endpoints:
+- **Swagger UI**: `http://localhost:8000/docs`
+- **ReDoc**: `http://localhost:8000/redoc`
 
-1. **Request OTP**:
-   - Endpoint: `POST /auth/request-otp`
-   - Body: `{"phone_number": "+1234567890"}`
-   - Response: `{"message": "OTP sent for login or registration"}`
-   - OTP is logged to console (or Docker logs: `docker-compose logs app`).
+### 🔐 Authentication Flow
 
-2. **Login with OTP** (using form data):
-   - Endpoint: `POST /auth/login`
-   - Body: `{"username": "+1234567890", "password": "123456"}` (phone number as username, OTP as password)
-   - Response: `{"access_token": "<jwt>", "refresh_token": "<refresh_token>", "token_type": "bearer"}`
-   - Supports both phone number and email login if user has added an email
+The application implements a phone-based OTP authentication system with the following workflow:
 
-3. **Verify Login OTP** (using JSON):
-   - Endpoint: `POST /auth/verify-login-otp`
-   - Body: `{"phone_number": "+1234567890", "otp": "123456", "email": "user@example.com"}` (email is optional)
-   - Response: `{"access_token": "<jwt>", "refresh_token": "<refresh_token>", "token_type": "bearer"}`
+1. **Registration/Login**: Users can register or log in using their phone number by requesting an OTP via `POST /auth/request-otp`.
 
-4. **Refresh Access Token**:
-   - Endpoint: `POST /auth/refresh`
-   - Body: `{"refresh_token": "<refresh_token>"}`
-   - Response: `{"access_token": "<new_jwt>", "refresh_token": "<new_refresh_token>", "token_type": "bearer"}`
+2. **OTP Verification**: After receiving the OTP, users can verify it using either:
+   - Form data approach: `POST /auth/login` with phone number as username and OTP as password
+   - JSON approach: `POST /auth/verify-login-otp` with phone number and OTP in the request body
 
-5. **Update User Email**:
-   - Endpoint: `POST /auth/update-email`
-   - Requires: Valid JWT token
-   - Body: `{"email": "user@example.com"}`
-   - Response: `{"message": "Email updated. Verification code sent to email."}`
+3. **JWT Token Generation**: Upon successful OTP verification, the system returns both access and refresh tokens for session management.
 
-6. **Verify User Email**:
-   - Endpoint: `POST /auth/verify-email`
-   - Requires: Valid JWT token
-   - Body: `{"verification_code": "123456"}`
-   - Response: `{"message": "Email verified successfully"}`
+4. **Session Management**: The system supports JWT token refresh via the `POST /auth/refresh` endpoint.
 
-7. **Request Phone Number Change**:
-   - Endpoint: `POST /auth/update-phone-number`
-   - Requires: Valid JWT token
-   - Body: `{"phone_number": "+1234567890"}`
-   - Response: `{"message": "Verification code sent to new phone number"}`
+5. **Additional Features**:
+   - Users can update their email address and verify it with a verification code
+   - Users can change their phone number with verification
+   - Email and phone verification codes are sent via the configured service
 
-8. **Verify Phone Number Change**:
-   - Endpoint: `POST /auth/verify-phone-number`
-   - Requires: Valid JWT token
-   - Body: `{"verification_code": "123456"}`
-   - Response: `{"message": "Phone number updated and verified successfully"}`
+### 👤 User Management
 
-9. **Health Check**:
-   - Basic: `GET /health` - Response: `{"status": "ok"}`
-   - Extended: `GET /health/extended` - Response: Detailed health status with database and Redis connectivity
+The application provides endpoints for user management, including viewing and updating user information, with role-based access control for administrative functions.
 
-### User Management Endpoints
+### 🔍 Finding OTPs
 
-1. **Get Current User**:
-   - Endpoint: `GET /users/me`
-   - Requires: Valid JWT token
-   - Response: Current user's information
+OTPs are logged by the `MockSMSService`:
 
-2. **Update Current User**:
-   - Endpoint: `PUT /users/me`
-   - Requires: Valid JWT token
-   - Body: User update information
+- **Local**: Check terminal output for `INFO:root:Mock SMS: Sending OTP <6-digit-otp> to <phone_number>`.
+- **Docker**: Run `docker compose logs app` and look for the same message.
+- **Example**: `2025-08-17 05:30:00 [INFO] root: Mock SMS: Sending OTP 123456 to +1234567890`.
 
-3. **Delete Current User**:
-   - Endpoint: `DELETE /users/me`
-   - Requires: Valid JWT token
-
-4. **Get User by ID** (Admin only):
-   - Endpoint: `GET /users/{user_id}`
-   - Requires: Valid JWT token with admin role
-
-### Role Management Endpoints (Admin only)
-
-1. **List Roles**:
-   - Endpoint: `GET /roles/`
-   - Requires: Valid JWT token with admin role
-
-2. **Create Role**:
-   - Endpoint: `POST /roles/`
-   - Requires: Valid JWT token with admin role
-   - Body: `{"name": "new_role_name"}`
-
-### Finding OTPs
-- OTPs are logged by the `MockSMSService`:
-  - **Local**: Check terminal output for `INFO:root:Mock SMS: Sending OTP <6-digit-otp> to <phone_number>`.
-  - **Docker**: Run `docker-compose logs app` and look for the same message.
-  - Example: `2025-08-17 05:30:00 [INFO] root: Mock SMS: Sending OTP 123456 to +1234567890`.
-
-### Example Commands
-
-```bash
-# Request OTP for login or registration
-curl -X POST "http://localhost:8000/auth/request-otp" -H "Content-Type: application/json" -d '{"phone_number": "+1234567890"}'
-
-# Verify OTP and get JWT token (using JSON)
-curl -X POST "http://localhost:8000/auth/verify-login-otp" -H "Content-Type: application/json" -d '{"phone_number": "+1234567890", "otp": "123456"}'
-
-# Login with OTP (using form data) - supports both phone and email login
-curl -X POST "http://localhost:8000/auth/login" -H "Content-Type: application/x-www-form-urlencoded" -d 'username=+1234567890&password=123456'
-
-# Refresh access token
-curl -X POST "http://localhost:8000/auth/refresh" -H "Content-Type: application/json" -d '{"refresh_token": "your-refresh-token-here"}'
-
-# Update user email (requires JWT token)
-curl -X POST "http://localhost:8000/auth/update-email" -H "Content-Type: application/json" -H "Authorization: Bearer <your-jwt-token>" -d '{"email": "user@example.com"}'
-
-# Verify user email (requires JWT token)
-curl -X POST "http://localhost:8000/auth/verify-email" -H "Content-Type: application/json" -H "Authorization: Bearer <your-jwt-token>" -d '{"verification_code": "123456"}'
-
-# Request phone number change (requires JWT token)
-curl -X POST "http://localhost:8000/auth/update-phone-number" -H "Content-Type: application/json" -H "Authorization: Bearer <your-jwt-token>" -d '{"phone_number": "+0987654321"}'
-
-# Verify phone number change (requires JWT token)
-curl -X POST "http://localhost:8000/auth/verify-phone-number" -H "Content-Type: application/json" -H "Authorization: Bearer <your-jwt-token>" -d '{"verification_code": "123456"}'
-
-# Get current user info (requires JWT token)
-curl -X GET "http://localhost:8000/users/me" -H "Authorization: Bearer <your-jwt-token>"
-
-# Health check
-curl -X GET "http://localhost:8000/health"
-
-# Extended health check
-curl -X GET "http://localhost:8000/health/extended"
-```
-
-## Testing
+## 🧪 Testing
 
 1. **Run Tests**:
    ```bash
@@ -262,7 +157,7 @@ curl -X GET "http://localhost:8000/health/extended"
    uv run pre-commit run --all-files
    ```
 
-## Project Structure
+## 🏗️ Project Structure
 
 ```
 fastforge/
@@ -296,7 +191,7 @@ fastforge/
 ├── README.md             # Project documentation
 ```
 
-## Dependencies
+## 📦 Dependencies
 
 - **FastAPI**: Web framework
 - **SQLModel**: ORM for PostgreSQL
@@ -308,7 +203,7 @@ fastforge/
 - **uv**: Package management
 - **pytest**: Testing framework
 
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/your-feature`
@@ -317,6 +212,6 @@ fastforge/
 5. Push to branch: `git push origin feature/your-feature`
 6. Open a pull request
 
-## License
+## ©️ License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
