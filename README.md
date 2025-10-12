@@ -10,6 +10,8 @@ FastForge is a lightweight, secure, and scalable FastAPI boilerplate designed fo
   - Refresh token support for extended sessions with automatic rotation.
   - OTP attempt limiting (max 3 attempts per 15 minutes window) to prevent brute force attacks.
   - Support for both phone number and email authentication.
+  - Phone number change functionality with OTP verification.
+  - Email service with mock implementation and user email verification.
 - **Scalable Design**:
   - UUIDs for all IDs to ensure uniqueness and scalability in distributed systems.
   - Many-to-many user-role relationships via a `UserRole` table.
@@ -26,6 +28,9 @@ FastForge is a lightweight, secure, and scalable FastAPI boilerplate designed fo
  - Pre-commit hooks for code quality (Ruff, isort).
   - Comprehensive health checks.
   - Rate limiting on authentication endpoints (3 requests per minute).
+- **Additional Features**:
+  - Soft delete support for user accounts with identifier hashing for privacy
+  - Dynamic database configuration based on environment (RUNNING_IN_DOCKER variable)
 - **Testing**:
   - Comprehensive test suite with pytest and pytest-asyncio.
   - Coverage reporting with pytest-cov.
@@ -45,6 +50,8 @@ The application uses a centralized configuration system via the `src/config.py` 
 - `ALLOWED_ORIGINS`: Comma-separated list of allowed origins for CORS
 - `ENV`: Environment (development/production)
 - `SMS_SERVICE_TYPE`: Type of SMS service to use (mock, twilio, etc.)
+- `EMAIL_SERVICE_TYPE`: Type of email service to use (currently only mock is supported)
+- `RUNNING_IN_DOCKER`: Environment variable to indicate when running in Docker (automatically set in Dockerfile and docker-compose.yml)
 
 ## Prerequisites
 
@@ -75,10 +82,13 @@ The application uses a centralized configuration system via the `src/config.py` 
    APP_NAME="FastForge"
    DEBUG=true
    SECRET_KEY="your-secure-random-key-here"  # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
-   DATABASE_URL="postgresql+psycopg://postgres:password@localhost:5432/fastforge"
+   # Leave DATABASE_URL empty to allow dynamic configuration based on RUNNING_IN_DOCKER environment variable
+   DATABASE_URL=""
    REDIS_URL="redis://localhost:6379/0"
    LOG_LEVEL="INFO"
    ALLOWED_ORIGINS="http://localhost:3000,https://myapp.com"
+   # The RUNNING_IN_DOCKER variable is automatically set to true in Docker environments
+   RUNNING_IN_DOCKER=false
    ```
 
 4. **Set Up PostgreSQL and Redis**:
@@ -149,7 +159,19 @@ The application uses a centralized configuration system via the `src/config.py` 
    - Body: `{"verification_code": "123456"}`
    - Response: `{"message": "Email verified successfully"}`
 
-7. **Health Check**:
+7. **Request Phone Number Change**:
+   - Endpoint: `POST /auth/update-phone-number`
+   - Requires: Valid JWT token
+   - Body: `{"phone_number": "+1234567890"}`
+   - Response: `{"message": "Verification code sent to new phone number"}`
+
+8. **Verify Phone Number Change**:
+   - Endpoint: `POST /auth/verify-phone-number`
+   - Requires: Valid JWT token
+   - Body: `{"verification_code": "123456"}`
+   - Response: `{"message": "Phone number updated and verified successfully"}`
+
+9. **Health Check**:
    - Basic: `GET /health` - Response: `{"status": "ok"}`
    - Extended: `GET /health/extended` - Response: Detailed health status with database and Redis connectivity
 
@@ -210,6 +232,12 @@ curl -X POST "http://localhost:8000/auth/update-email" -H "Content-Type: applica
 
 # Verify user email (requires JWT token)
 curl -X POST "http://localhost:8000/auth/verify-email" -H "Content-Type: application/json" -H "Authorization: Bearer <your-jwt-token>" -d '{"verification_code": "123456"}'
+
+# Request phone number change (requires JWT token)
+curl -X POST "http://localhost:8000/auth/update-phone-number" -H "Content-Type: application/json" -H "Authorization: Bearer <your-jwt-token>" -d '{"phone_number": "+0987654321"}'
+
+# Verify phone number change (requires JWT token)
+curl -X POST "http://localhost:8000/auth/verify-phone-number" -H "Content-Type: application/json" -H "Authorization: Bearer <your-jwt-token>" -d '{"verification_code": "123456"}'
 
 # Get current user info (requires JWT token)
 curl -X GET "http://localhost:8000/users/me" -H "Authorization: Bearer <your-jwt-token>"
