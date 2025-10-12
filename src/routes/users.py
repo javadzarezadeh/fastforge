@@ -105,7 +105,7 @@ async def delete_current_user(
     session: Session = Depends(get_session),
 ):
     """
-    Delete current user.
+    Soft delete current user by hashing identifying information.
 
     Args:
         current_user: The authenticated user object
@@ -114,7 +114,11 @@ async def delete_current_user(
     Returns:
         None: Indicates successful deletion
     """
-    session.delete(current_user)
+    # Use the soft delete method with identifier hashing
+    current_user.soft_delete_with_hashed_identifiers()
+
+    # Update the user in the database
+    session.add(current_user)
     session.commit()
     return None
 
@@ -140,7 +144,9 @@ async def get_user_by_id(
         HTTPException: If user ID is invalid or user not found
     """
     try:
-        user = session.exec(select(User).where(User.id == UUID(user_id))).first()
+        user = session.exec(
+            select(User).where((User.id == UUID(user_id)) & (User.deleted_at.is_(None)))
+        ).first()
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID"

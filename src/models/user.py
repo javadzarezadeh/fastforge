@@ -1,8 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import Annotated
 
-from pydantic import EmailStr, StringConstraints
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -20,13 +18,39 @@ class Role(SQLModel, table=True):
 
 class User(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    phone_number: Annotated[str, StringConstraints(pattern=r"^\+?[1-9]\d{1,14}$")] = (
-        Field(unique=True, index=True)
-    )
-    email: EmailStr | None = Field(default=None, unique=True, index=True)
+    phone_number: str = Field(unique=True, index=True)
+    email: str | None = Field(default=None, unique=True, index=True)
     is_phone_verified: bool = Field(default=False)
     is_email_verified: bool = Field(default=False)
     refresh_token: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
     updated_at: datetime | None = Field(default=None)
+    deleted_at: datetime | None = Field(default=None, index=True)
     roles: list["Role"] = Relationship(back_populates="users", link_model=UserRole)
+
+    def soft_delete_with_hashed_identifiers(self):
+        """
+        Soft delete the user account by hashing identifying information
+        while preserving other data for compliance purposes.
+        """
+        import hashlib
+        import time
+
+        # Hash the identifiers to prevent access by new users with same identifiers
+        timestamp = str(time.time())
+        if self.phone_number:
+            self.phone_number = hashlib.sha256(
+                (self.phone_number + timestamp).encode()
+            ).hexdigest()
+        if self.email:
+            self.email = hashlib.sha256((self.email + timestamp).encode()).hexdigest()
+
+        # Mark as deleted
+        self.deleted_at = datetime.now(tz=timezone.utc)
+
+        # Reset verification status since identifiers are now hashed
+        self.is_phone_verified = False
+        self.is_email_verified = False
+
+        # Clear refresh token for security
+        self.refresh_token = None

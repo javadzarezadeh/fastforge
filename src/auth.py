@@ -188,7 +188,7 @@ async def get_current_user(
         The authenticated user object
 
     Raises:
-        HTTPException: If token is invalid or user not found
+        HTTPException: If token is invalid, user not found, or user is deleted
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -197,10 +197,13 @@ async def get_current_user(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
             )
-        user = session.exec(select(User).where(User.id == user_id)).first()
+        user = session.exec(
+            select(User).where((User.id == user_id) & (User.deleted_at.is_(None)))
+        ).first()
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or account deleted",
             )
         return user
     except JWTError:
@@ -282,13 +285,23 @@ def verify_otp_and_create_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP"
         )
-    user = session.exec(select(User).where(User.phone_number == phone_number)).first()
+    # Only get non-deleted users
+    user = session.exec(
+        select(User).where(
+            (User.phone_number == phone_number) & (User.deleted_at.is_(None))
+        )
+    ).first()
     if not user:
-        if email and session.exec(select(User).where(User.email == email)).first():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered",
-            )
+        # Check if email is already registered to a non-deleted user
+        if email:
+            email_user = session.exec(
+                select(User).where((User.email == email) & (User.deleted_at.is_(None)))
+            ).first()
+            if email_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already registered",
+                )
         user = User(
             phone_number=phone_number,
             is_phone_verified=True,  # Phone number is verified via OTP

@@ -128,7 +128,9 @@ async def authenticate_user_with_otp(
         user = verify_otp_and_create_user(session, identifier, otp_code)
     elif "@" in identifier and "." in identifier:
         # Login with email - find user by email and verify OTP
-        user = session.exec(select(User).where(User.email == identifier)).first()
+        user = session.exec(
+            select(User).where((User.email == identifier) & (User.deleted_at.is_(None)))
+        ).first()
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
@@ -235,8 +237,13 @@ async def create_admin_user(
             detail="An admin user already exists. This endpoint is disabled.",
         )
 
-    user = session.exec(select(User).where(User.phone_number == phone_number)).first()
-    if user:
+    # Check if there's an active user with this phone number
+    active_user = session.exec(
+        select(User).where(
+            (User.phone_number == phone_number) & (User.deleted_at.is_(None))
+        )
+    ).first()
+    if active_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists"
         )
@@ -285,7 +292,9 @@ async def refresh_access_token(
     """
     # Find user by refresh token
     user = session.exec(
-        select(User).where(User.refresh_token == data.refresh_token)
+        select(User).where(
+            (User.refresh_token == data.refresh_token) & (User.deleted_at.is_(None))
+        )
     ).first()
 
     if not user:
@@ -340,12 +349,16 @@ async def update_user_email(
     Raises:
         HTTPException: If email is already registered to another user
     """
-    # Check if email is already registered to another user
+    # Check if email is already registered to another active user
     existing_user = session.exec(
-        select(User).where(User.email == update_email_request.email)
+        select(User).where(
+            (User.email == update_email_request.email)
+            & (User.deleted_at.is_(None))
+            & (User.id != current_user.id)
+        )
     ).first()
 
-    if existing_user and existing_user.id != current_user.id:
+    if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered to another user",
@@ -468,12 +481,16 @@ async def request_phone_number_change(
             detail="Invalid phone number format",
         )
 
-    # Check if phone number is already registered to another user
+    # Check if phone number is already registered to another active user
     existing_user = session.exec(
-        select(User).where(User.phone_number == update_phone_request.phone_number)
+        select(User).where(
+            (User.phone_number == update_phone_request.phone_number)
+            & (User.deleted_at.is_(None))
+            & (User.id != current_user.id)
+        )
     ).first()
 
-    if existing_user and existing_user.id != current_user.id:
+    if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Phone number already registered to another user",

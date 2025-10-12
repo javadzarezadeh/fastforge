@@ -27,6 +27,7 @@ services:
     env_file:
       - .env
     environment:
+      - RUNNING_IN_DOCKER=true
       - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-fastforge}}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:

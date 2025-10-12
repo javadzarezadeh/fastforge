@@ -25,10 +25,7 @@ class Config:
     OTP_EXPIRE_MINUTES: int = int(os.getenv("OTP_EXPIRE_MINUTES", "5"))
 
     # Database settings
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        f"postgresql+psycopg://{os.getenv('POSTGRES_USER', 'postgres')}:{os.getenv('POSTGRES_PASSWORD', 'password')}@{os.getenv('DB_HOST', 'db')}:{os.getenv('DB_PORT', '5432')}/{os.getenv('POSTGRES_DB', 'fastforge')}",
-    )
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
     # Redis settings
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -65,9 +62,20 @@ class Config:
     @classmethod
     def get_database_url(cls) -> str:
         """Get the appropriate database URL based on environment"""
-        # Use the DATABASE_URL from environment variables, which can contain
-        # the proper docker connection string with environment variables
-        return cls.DATABASE_URL
+        # If DATABASE_URL is explicitly set in environment, use it
+        if cls.DATABASE_URL:
+            return cls.DATABASE_URL
+
+        # Determine if running in Docker by checking environment variable
+        running_in_docker = os.getenv("RUNNING_IN_DOCKER", "false").lower() == "true"
+
+        # Default to localhost if not in Docker, 'db' if in Docker
+        db_host = "db" if running_in_docker else "localhost"
+
+        # Build database URL with default values
+        database_url = f"postgresql+psycopg://{os.getenv('POSTGRES_USER', 'postgres')}:{os.getenv('POSTGRES_PASSWORD', 'password')}@{db_host}:{os.getenv('DB_PORT', '5432')}/{os.getenv('POSTGRES_DB', 'fastforge')}"
+
+        return database_url
 
 
 # Validate configuration on import, but skip in test environment

@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --shell /bin/bash app
 
+# Set environment variable to indicate running in Docker
+ENV RUNNING_IN_DOCKER=true
+
 WORKDIR /app
 
 # Copy project files
