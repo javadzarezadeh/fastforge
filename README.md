@@ -79,7 +79,7 @@ The application uses a centralized configuration system via the `src/config.py` 
 
 4. **Set Up PostgreSQL and Redis**:
    - Install PostgreSQL and Redis locally or use Docker (see below).
-   - Create a database named `fastforge` in PostgreSQL.
+   - Create a database with a name of your choice in PostgreSQL (make sure to update your `.env` file accordingly).
 
 5. **Run Migrations**:
    ```bash
