@@ -163,32 +163,32 @@ OTPs are logged by the `MockSMSService`:
 fastforge/
 ├── src/
 │   ├── __init__.py
-│   ├── main.py           # FastAPI app, health checks and main configuration
-│   ├── auth.py           # Authentication logic and helper functions (OTP, JWT)
-│   ├── database.py       # Database configuration
-│   ├── sms_service.py    # SMS service interface and implementations
-│   ├── email_service.py # Email service interface and implementations
-│   ├── config.py         # Centralized configuration management
+│   ├── main.py             # FastAPI app, health checks and main configuration
+│   ├── auth.py             # Authentication logic and helper functions (OTP, JWT)
+│   ├── database.py         # Database configuration
+│   ├── sms_service.py      # SMS service interface and implementations
+│   ├── email_service.py    # Email service interface and implementations
+│   ├── config.py           # Centralized configuration management
 │   ├── models/
 │   │   ├── __init__.py
-│   │   ├── user.py       # User, Role and UserRole models
+│   │   ├── user.py         # User, Role and UserRole models
 │   ├── routes/
 │   │   ├── __init__.py
-│   │   ├── auth.py       # Authentication endpoints (OTP, JWT)
-│   │   ├── users.py      # User management endpoints
-│   │   ├── roles.py      # Role management endpoints
-├── migrations/            # Alembic migrations
+│   │   ├── auth.py         # Authentication endpoints (OTP, JWT)
+│   │   ├── users.py        # User management endpoints
+│   │   ├── roles.py        # Role management endpoints
+├── migrations/             # Alembic migrations
 ├── tests/
-│   ├── test_auth.py      # Authentication tests
-│   ├── test_health.py    # Health check tests
-├── .env                  # Environment variables
-├── .env.example          # Example environment variables
-├── pyproject.toml        # Dependencies
-├── uv.lock               # Locked dependencies
-├── Dockerfile            # Docker configuration
-├── docker-compose.yml    # Docker Compose services
+│   ├── test_auth.py        # Authentication tests
+│   ├── test_health.py      # Health check tests
+├── .env                    # Environment variables
+├── .env.example            # Example environment variables
+├── pyproject.toml          # Dependencies
+├── uv.lock                 # Locked dependencies
+├── Dockerfile              # Docker configuration
+├── docker-compose.yml      # Docker Compose services
 ├── .pre-commit-config.yaml # Code quality hooks
-├── README.md             # Project documentation
+├── README.md               # Project documentation
 ```
 
 ## 📦 Dependencies
