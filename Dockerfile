@@ -1,32 +1,27 @@
 FROM python:3.13-slim
 
 # Install uv from official image
-COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.9.2 /uv /uvx /bin/
 
-# Install system dependencies for psycopg[binary]
-RUN apt-get update && apt-get install -y \
-    libpq-dev \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --shell /bin/bash app
+RUN useradd --create-home --shell /bin/bash app
 
 # Set environment variable to indicate running in Docker
 ENV RUNNING_IN_DOCKER=true
 
 WORKDIR /app
 
-# Copy project files
-COPY pyproject.toml .
-COPY uv.lock .
-COPY alembic.ini .
-COPY src ./src
-COPY migrations ./migrations
-COPY tests ./tests
+# Copy dependency files first for better layer caching
+COPY pyproject.toml uv.lock ./
 
 # Install dependencies
 RUN uv sync --frozen --no-cache && \
     uv sync --frozen --no-cache --group dev
 
+# Copy application code
+COPY alembic.ini .
+COPY src ./src
+COPY migrations ./migrations
+COPY tests ./tests
 
 # Copy entrypoint script
 COPY docker-entrypoint.sh .
