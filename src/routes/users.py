@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from ..auth import get_current_user, role_required
 from ..database import get_session
@@ -195,9 +195,10 @@ async def get_all_users(
     """
     offset = page * size
 
-    # Count total users
-    total_users = session.exec(select(User).where(User.deleted_at.is_(None))).all()
-    total = len(total_users)
+    # Count total users efficiently with COUNT query
+    total = session.exec(
+        select(func.count(User.id)).where(User.deleted_at.is_(None))
+    ).one()
 
     # Get paginated users
     users = session.exec(
