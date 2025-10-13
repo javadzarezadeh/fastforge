@@ -226,15 +226,18 @@ async def create_admin_user(
             status_code=status.HTTP_403_FORBIDDEN, detail="Invalid secret key"
         )
 
-    # Check if any admin user already exists
+    # Check if any non-deleted admin user already exists
     existing_admin = session.exec(
-        select(User).join(UserRole).join(Role).where(Role.name == "admin")
+        select(User)
+        .join(UserRole)
+        .join(Role)
+        .where((Role.name == "admin") & (User.deleted_at.is_(None)))
     ).first()
 
     if existing_admin:
         raise HTTPException(
             status_code=400,
-            detail="An admin user already exists. This endpoint is disabled.",
+            detail="An active admin user already exists. This endpoint is disabled.",
         )
 
     # Check if there's an active user with this phone number
