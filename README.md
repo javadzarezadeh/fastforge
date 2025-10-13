@@ -212,6 +212,33 @@ fastforge/
 5. Push to branch: `git push origin feature/your-feature`
 6. Open a pull request
 
+## 🔄 Updating from the Boilerplate
+
+If you're using this boilerplate for your own project and want to receive updates from the original repository, follow this workflow:
+
+1. Fork the repository to your own GitHub account
+2. Clone your fork locally: `git clone https://github.com/your-username/fastforge.git`
+3. Add the original repository as an upstream remote:
+   ```bash
+   git remote add upstream https://github.com/javadzarezadeh/fastforge.git
+   ```
+4. Fetch upstream changes:
+   ```bash
+   git fetch upstream
+   ```
+5. Merge upstream changes into your main branch:
+   ```bash
+   git checkout main
+   git merge upstream/main
+   ```
+6. Resolve any merge conflicts if they occur
+7. Push the updated code to your fork:
+   ```bash
+   git push origin main
+   ```
+
+This approach allows you to keep your customizations while receiving updates from the original boilerplate.
+
 ## ©️ License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
