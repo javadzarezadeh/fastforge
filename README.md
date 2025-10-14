@@ -101,12 +101,7 @@ The application uses a centralized configuration system via the `src/config.py` 
    docker compose up --build
    ```
 
-2. **Run Migrations** (in a separate terminal):
-   ```bash
-   uv run alembic upgrade head
-   ```
-
-3. **Access Services**:
+2. **Access Services**:
    - API: `http://localhost:8000`
    - Adminer (PostgreSQL UI): `http://localhost:8081`
 
@@ -189,6 +184,7 @@ fastforge/
 ├── pyproject.toml          # Dependencies
 ├── uv.lock                 # Locked dependencies
 ├── Dockerfile              # Docker configuration
+├── docker-entrypoint.sh    # Docker entrypoint script
 ├── docker-compose.yml      # Docker Compose services
 ├── .pre-commit-config.yaml # Code quality hooks
 ├── README.md               # Project documentation
