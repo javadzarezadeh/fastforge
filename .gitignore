@@ -1,15 +1,10 @@
-.env
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-.venv/
-venv/
-env/
-.ENV
-.venv.bak/
-venv.bak/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
 
 # Distribution / packaging
 .Python
@@ -28,6 +23,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # PyInstaller
 *.manifest
@@ -59,6 +55,7 @@ cover/
 # Django stuff:
 *.log
 local_settings.py
+db.sqlite3
 db.sqlite3-journal
 
 # Flask stuff:
@@ -99,13 +96,13 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
 .venv
-env
-venv
-ENV
-env.bak
-venv.bak
+venv/
+ENV/
+env/
+.ENV
+.venv.bak/
+venv.bak/
 
 # Spyder project settings
 .spyderproject
@@ -125,16 +122,24 @@ dmypy.json
 # Pyre
 .pyre/
 
-# IDE
+# pytype
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# PyCharm
+# JetBrains specific template is maintained in a separate JetBrains.gitignore
+.idea/
+
+# Visual Studio Code
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-.idea/
-*.swp
-*.swo
-*~
+
+# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -145,7 +150,13 @@ Thumbs.db
 Icon?
 .apdisk
 
-# Original entries
-migrations/versions/*
-alembic.ini
+# Editor temporary files
+*.swp
+*.swo
+*~
+
+# Environment variables file
+.env
+
+# Ruff cache
 .ruff_cache/
