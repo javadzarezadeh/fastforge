@@ -7,7 +7,7 @@ If you find this project helpful, consider supporting it with a crypto donation:
 - **Bitcoin**: `bc1qnk9dvr2zpp42rdrf4td99d3r5g4ylg0wlngpy0`
 - **Ethereum**: `0x9D0C185Ed0BbfeFc9dC392D2E3d72Be2635D3BA3`
 - **TON**: `UQA6dCXas-TAbpiH7ATdgSxKze1iekkxFz1ch-Z79GwDnFGw`
-- **DAI (ERC20)**: `0x9D0C185Ed0BbfeFc9dC392D2E3d72Be2635D3BA3`
+- **USDT / USDC / DAI (ERC20)**: `0x9D0C185Ed0BbfeFc9dC392D2E3d72Be2635D3BA3`
 
 FastForge is a lightweight, secure, and scalable FastAPI boilerplate designed for rapid development of authentication-driven applications. It features a robust authentication system with phone-based OTP verification and role-based access control, built with modern Python tools and best practices.
 
