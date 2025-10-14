@@ -16,6 +16,7 @@ from .database import get_session
 from .models.user import Role, User, UserRole
 from .sms_service import MockSMSService
 
+# JWT configuration
 ALGORITHM = "HS256"
 SECRET_KEY = Config.SECRET_KEY
 
