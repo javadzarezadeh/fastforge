@@ -5,10 +5,11 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Callable
 
+import jwt
 import redis
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from jwt import PyJWTError as JWTError
 from sqlmodel import Session, select
 
 from .config import Config
@@ -202,26 +203,27 @@ async def get_current_user(
     Raises:
         HTTPException: If token is invalid, user not found, or user is deleted
     """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-            )
-        user = session.exec(
-            select(User).where((User.id == user_id) & (User.deleted_at.is_(None)))
-        ).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or account deleted",
-            )
-        return user
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        payload = jwt.decode(
+            token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": True}
         )
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    user = session.exec(
+        select(User).where((User.id == user_id) & (User.deleted_at.is_(None)))
+    ).first()
+    if user is None:
+        raise credentials_exception
+    return user
 
 
 async def get_current_user_with_roles(
@@ -243,13 +245,23 @@ async def get_current_user_with_roles(
     Raises:
         HTTPException: If user doesn't have required role(s)
     """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    role_exception = HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Access denied: This action requires one of the following roles: {', '.join(required_roles) if required_roles else 'N/A'}",
+    )
+
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": True}
+        )
         user_id: str = payload.get("sub")
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-            )
+        if user_id is None:
+            raise credentials_exception
 
         # Get roles from the JWT token
         token_roles = payload.get("roles", [])
@@ -257,25 +269,18 @@ async def get_current_user_with_roles(
         if required_roles:
             # Check if user has required roles based on the token
             if not any(role in token_roles for role in required_roles):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Access denied: This action requires one of the following roles: {', '.join(required_roles)}",
-                )
+                raise role_exception
 
-        # Get the user object to return
-        user = session.exec(
-            select(User).where((User.id == user_id) & (User.deleted_at.is_(None)))
-        ).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or account deleted",
-            )
-        return user
     except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        )
+        raise credentials_exception
+
+    # Get the user object to return
+    user = session.exec(
+        select(User).where((User.id == user_id) & (User.deleted_at.is_(None)))
+    ).first()
+    if user is None:
+        raise credentials_exception
+    return user
 
 
 def role_required(required_roles: list[str]) -> Callable:

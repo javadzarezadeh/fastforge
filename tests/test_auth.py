@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from jose import jwt
+import jwt
 
 from src.auth import create_access_token
 from src.config import Config
