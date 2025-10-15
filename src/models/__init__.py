@@ -1,1 +1,1 @@
-from .user import Role, User, UserRole  # noqa: F401
+from .user import Role, User, UserRoleLink  # noqa: F401

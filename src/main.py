@@ -1,21 +1,17 @@
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 
-import redis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from pydantic import BaseModel, EmailStr
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from sqlmodel import text
 
 from .config import Config
-from .database import engine
 from .routes.auth import router as auth_router
+from .routes.health import router as health_router
 from .routes.roles import router as roles_router
 from .routes.users import router as users_router
 
@@ -43,6 +39,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="FastForge",
     description="A lightweight FastAPI boilerplate with phone-based OTP authentication and user management. To authorize in Swagger UI, use POST /auth/login to get an OTP, then POST /auth/verify-login-otp to get a JWT. Enter 'Bearer <jwt>' in the Authorize button.",
+    version="0.1.0",
     openapi_tags=[
         {"name": "auth", "description": "Authentication endpoints (OTP-based)"},
         {"name": "users", "description": "User management endpoints (require JWT)"},
@@ -74,57 +71,4 @@ app.add_middleware(
 app.include_router(users_router)
 app.include_router(auth_router)
 app.include_router(roles_router)
-
-
-# Input models
-class HealthResponse(BaseModel):
-    status: str
-
-
-class LoginRequest(BaseModel):
-    phone_number: str
-    email: EmailStr | None = None
-
-
-@app.get("/health", response_model=HealthResponse, tags=["health"])
-async def get_health_status():
-    """
-    Basic health check endpoint.
-
-    Returns:
-        HealthResponse: A dictionary with status "ok"
-    """
-    return {"status": "ok"}
-
-
-@app.get("/health/extended", tags=["health"])
-async def get_extended_health_status():
-    """
-    Extended health check that verifies database and Redis connectivity.
-
-    Returns:
-        dict: A dictionary with health status and checks for database and Redis
-    """
-    health_status = {
-        "status": "healthy",
-        "checks": {"database": "ok", "redis": "ok"},
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-
-    # Check database connectivity
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-    except Exception as e:
-        health_status["checks"]["database"] = f"error: {str(e)}"
-        health_status["status"] = "unhealthy"
-
-    # Check Redis connectivity
-    try:
-        redis_client = redis.Redis.from_url(Config.REDIS_URL, decode_responses=True)
-        redis_client.ping()
-    except Exception as e:
-        health_status["checks"]["redis"] = f"error: {str(e)}"
-        health_status["status"] = "unhealthy"
-
-    return health_status
+app.include_router(health_router)

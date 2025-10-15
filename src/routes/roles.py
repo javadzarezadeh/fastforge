@@ -1,27 +1,29 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from ..auth import role_required
 from ..database import get_session
-from ..models.user import Role, User, UserRole
-from .users import UserListResponse, UserResponse
-
-router = APIRouter(prefix="/roles", tags=["roles"])
+from ..models.user import Role, User, UserRoleLink
+from ..routes.users import UserListResponse, UserResponse
 
 
+# Response models using proper Pydantic schemas
 class RoleResponse(BaseModel):
     name: str
     description: str | None = None
 
 
 class RoleCreate(BaseModel):
-    name: str
-    description: str | None = None
+    name: str = Field(..., min_length=1, max_length=50)
+    description: str | None = Field(default=None, max_length=255)
 
 
 class RoleUpdate(BaseModel):
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=255)
+
+
+router = APIRouter(prefix="/roles", tags=["roles"])
 
 
 @router.get("/", response_model=list[str])
@@ -168,7 +170,7 @@ async def delete_role_by_name(
 
     # Check if role is assigned to any users
     user_role = session.exec(
-        select(UserRole).where(UserRole.role_id == role.id)
+        select(UserRoleLink).where(UserRoleLink.role_id == role.id)
     ).first()
     if user_role:
         raise HTTPException(
@@ -214,8 +216,8 @@ async def get_users_by_role(
     # Count total users with this role
     stmt = (
         select(User)
-        .join(UserRole)
-        .where((UserRole.role_id == role.id) & (User.deleted_at.is_(None)))
+        .join(UserRoleLink)
+        .where((UserRoleLink.role_id == role.id) & (User.deleted_at.is_(None)))
     )
     total = session.exec(stmt).all()
     total_count = len(total)
@@ -223,8 +225,8 @@ async def get_users_by_role(
     # Get paginated users with this role
     stmt_paginated = (
         select(User)
-        .join(UserRole)
-        .where((UserRole.role_id == role.id) & (User.deleted_at.is_(None)))
+        .join(UserRoleLink)
+        .where((UserRoleLink.role_id == role.id) & (User.deleted_at.is_(None)))
         .offset(offset)
         .limit(size)
     )

@@ -7,7 +7,6 @@ that logs emails instead of sending them, similar to the SMS service approach.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import List
 
 from .config import Config
 
@@ -16,7 +15,7 @@ class EmailService(ABC):
     """Abstract base class for email services"""
 
     @abstractmethod
-    async def send_email(self, to_emails: List[str], subject: str, body: str):
+    async def send_email(self, to_emails: list[str], subject: str, body: str):
         """Send an email to the specified recipients"""
         pass
 
@@ -24,7 +23,7 @@ class EmailService(ABC):
 class MockEmailService(EmailService):
     """Mock email service that logs emails instead of sending them"""
 
-    async def send_email(self, to_emails: List[str], subject: str, body: str):
+    async def send_email(self, to_emails: list[str], subject: str, body: str):
         """
         Log the email instead of sending it.
 

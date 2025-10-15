@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 import redis
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlmodel import Session, select
@@ -33,30 +33,68 @@ from ..auth import (
 from ..config import Config
 from ..database import get_session
 from ..email_service import EmailService, get_email_service
-from ..models.user import Role, User, UserRole
+from ..models.user import Role, User, UserRoleLink
 from ..sms_service import SMSService, get_sms_service
 
-# Rate limiter
-limiter = Limiter(key_func=get_remote_address)
-
-router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-# Input models
-class OTPRequest(BaseModel):
-    phone_number: str
-
-
-class VerifyOTPRequest(BaseModel):
-    phone_number: str
-    otp: str
-    email: EmailStr | None = None
+# Response models using proper Pydantic schemas
 
 
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+
+
+class OTPRequest(BaseModel):
+    phone_number: str = Field(
+        ...,
+        description="Phone number in international format",
+        pattern=r"^\+?[1-9]\d{0,14}$",
+    )
+
+
+class VerifyOTPRequest(BaseModel):
+    phone_number: str = Field(
+        ...,
+        description="Phone number in international format",
+        pattern=r"^\+?[1-9]\d{0,14}$",
+    )
+    otp: str = Field(..., min_length=6, max_length=6, description="6-digit OTP code")
+    email: EmailStr | None = None
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(..., description="Valid refresh token")
+
+
+class UpdateEmailRequest(BaseModel):
+    email: EmailStr = Field(..., description="New email address")
+
+
+class VerifyEmailRequest(BaseModel):
+    verification_code: str = Field(
+        ..., min_length=6, max_length=6, description="6-digit verification code"
+    )
+
+
+class UpdatePhoneNumberRequest(BaseModel):
+    phone_number: str = Field(
+        ...,
+        description="New phone number international format",
+        pattern=r"^\+?[1-9]\d{0,14}$",
+    )
+
+
+class VerifyPhoneNumberRequest(BaseModel):
+    verification_code: str = Field(
+        ..., min_length=6, max_length=6, description="6-digit verification code"
+    )
+
+
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/request-otp", tags=["auth"])
@@ -233,7 +271,7 @@ async def create_admin_user(
     # Check if any non-deleted admin user already exists
     existing_admin = session.exec(
         select(User)
-        .join(UserRole)
+        .join(UserRoleLink)
         .join(Role)
         .where((Role.name == "admin") & (User.deleted_at.is_(None)))
     ).first()
@@ -266,14 +304,10 @@ async def create_admin_user(
         session.add(admin_role)
         session.commit()
         session.refresh(admin_role)
-    user_role = UserRole(user_id=user.id, role_id=admin_role.id)
+    user_role = UserRoleLink(user_id=user.id, role_id=admin_role.id)
     session.add(user_role)
     session.commit()
     return {"message": "Admin created"}
-
-
-class RefreshTokenRequest(BaseModel):
-    refresh_token: str
 
 
 @router.post("/refresh", response_model=TokenResponse, tags=["auth"])
@@ -326,14 +360,6 @@ async def refresh_access_token(
     }
 
 
-class UpdateEmailRequest(BaseModel):
-    email: EmailStr
-
-
-class VerifyEmailRequest(BaseModel):
-    verification_code: str
-
-
 @router.post("/update-email", tags=["auth"])
 @limiter.limit("3/minute")
 async def update_user_email(
@@ -384,7 +410,7 @@ async def update_user_email(
     verification_code = (
         generate_otp()
     )  # Reusing the OTP function for email verification
-    redis_client = redis.Redis.from_url(Config.REDIS_URL, decode_responses=True)
+    redis_client = redis.Redis.from_url(Config.get_redis_url(), decode_responses=True)
     redis_client.setex(
         f"email_verification:{update_email_request.email}",
         timedelta(minutes=Config.OTP_EXPIRE_MINUTES),
@@ -431,7 +457,7 @@ async def verify_user_email(
         )
 
     # Check the verification code in Redis
-    redis_client = redis.Redis.from_url(Config.REDIS_URL, decode_responses=True)
+    redis_client = redis.Redis.from_url(Config.get_redis_url(), decode_responses=True)
     stored_code = redis_client.get(f"email_verification:{current_user.email}")
 
     if not stored_code or stored_code != verify_email_request.verification_code:
@@ -448,14 +474,6 @@ async def verify_user_email(
     redis_client.delete(f"email_verification:{current_user.email}")
 
     return {"message": "Email verified successfully"}
-
-
-class UpdatePhoneNumberRequest(BaseModel):
-    phone_number: str
-
-
-class VerifyPhoneNumberRequest(BaseModel):
-    verification_code: str
 
 
 @router.post("/update-phone-number", tags=["auth"])

@@ -1,12 +1,12 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from sqlmodel import Session, func, select
 
 from ..auth import get_current_user, role_required
 from ..database import get_session
-from ..models.user import Role, User, UserRole
+from ..models.user import Role, User, UserRoleLink
 
 router = APIRouter(
     prefix="/users", tags=["users"], responses={404: {"description": "Not found"}}
@@ -16,7 +16,9 @@ router = APIRouter(
 class UserResponse(BaseModel):
     id: str
     phone_number: str
-    email: EmailStr | None = None
+    email: str | None = (
+        None  # Use str to accommodate both valid emails and hashed values after soft deletion
+    )
     roles: list[str] = []
 
 
@@ -49,7 +51,7 @@ async def get_authenticated_user_info(current_user: User = Depends(get_current_u
     return UserResponse(
         id=str(current_user.id),
         phone_number=current_user.phone_number,
-        email=current_user.email,
+        email=current_user.email,  # This will be the raw value from the database, which might be hashed after soft deletion
         roles=[role.name for role in current_user.roles],
     )
 
@@ -85,7 +87,7 @@ async def update_current_user(
     if user_update.roles:
         # Clear existing roles
         user_roles = session.exec(
-            select(UserRole).where(UserRole.user_id == current_user.id)
+            select(UserRoleLink).where(UserRoleLink.user_id == current_user.id)
         ).all()
         for user_role in user_roles:
             session.delete(user_role)
@@ -97,7 +99,7 @@ async def update_current_user(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Role '{role_name}' does not exist",
                 )
-            user_role = UserRole(user_id=current_user.id, role_id=role.id)
+            user_role = UserRoleLink(user_id=current_user.id, role_id=role.id)
             session.add(user_role)
 
     session.add(current_user)
@@ -260,7 +262,7 @@ async def update_user_by_id(
     if user_update.roles is not None:
         # Clear existing roles
         user_roles = session.exec(
-            select(UserRole).where(UserRole.user_id == user.id)
+            select(UserRoleLink).where(UserRoleLink.user_id == user.id)
         ).all()
         for user_role in user_roles:
             session.delete(user_role)
@@ -272,7 +274,7 @@ async def update_user_by_id(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Role '{role_name}' does not exist",
                 )
-            user_role = UserRole(user_id=user.id, role_id=role.id)
+            user_role = UserRoleLink(user_id=user.id, role_id=role.id)
             session.add(user_role)
 
     session.add(user)
@@ -370,8 +372,8 @@ async def assign_role_to_user(
 
     # Check if user already has this role
     existing_user_role = session.exec(
-        select(UserRole).where(
-            (UserRole.user_id == user.id) & (UserRole.role_id == role.id)
+        select(UserRoleLink).where(
+            (UserRoleLink.user_id == user.id) & (UserRoleLink.role_id == role.id)
         )
     ).first()
     if existing_user_role:
@@ -384,7 +386,7 @@ async def assign_role_to_user(
         )
 
     # Assign the role to the user
-    user_role = UserRole(user_id=user.id, role_id=role.id)
+    user_role = UserRoleLink(user_id=user.id, role_id=role.id)
     session.add(user_role)
     session.commit()
     session.refresh(user)
@@ -441,8 +443,8 @@ async def remove_role_from_user(
 
     # Remove the role from the user
     user_role = session.exec(
-        select(UserRole).where(
-            (UserRole.user_id == user.id) & (UserRole.role_id == role.id)
+        select(UserRoleLink).where(
+            (UserRoleLink.user_id == user.id) & (UserRoleLink.role_id == role.id)
         )
     ).first()
     if not user_role:

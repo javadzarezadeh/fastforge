@@ -4,7 +4,6 @@ Centralizes environment variables and application settings.
 """
 
 import os
-from typing import List, Optional
 
 
 class Config:
@@ -17,8 +16,8 @@ class Config:
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
     # Security settings
-    SECRET_KEY: Optional[str] = os.getenv("SECRET_KEY")
-    ADMIN_SECRET_KEY: Optional[str] = os.getenv("ADMIN_SECRET_KEY")
+    SECRET_KEY: str | None = os.getenv("SECRET_KEY")
+    ADMIN_SECRET_KEY: str | None = os.getenv("ADMIN_SECRET_KEY")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
         os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
     )
@@ -28,11 +27,14 @@ class Config:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
     # Redis settings
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+    @classmethod
+    def get_redis_url(cls) -> str:
+        """Get Redis URL from environment, with localhost fallback."""
+        return os.getenv("REDIS_URL", "redis://localhost:6379")
 
     # CORS settings
-    ALLOWED_ORIGINS: List[str] = os.getenv("ALLOWED_ORIGINS", "").split(",")
-    ALLOWED_HOSTS: List[str] = os.getenv("ALLOWED_HOSTS", "*").split(",")
+    ALLOWED_ORIGINS: list[str] = os.getenv("ALLOWED_ORIGINS", "").split(",")
+    ALLOWED_HOSTS: list[str] = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
     # SMS service settings
     SMS_SERVICE_TYPE: str = os.getenv("SMS_SERVICE_TYPE", "mock")  # mock, twilio, etc.

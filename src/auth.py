@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 
 from .config import Config
 from .database import get_session
-from .models.user import Role, User, UserRole
+from .models.user import Role, User, UserRoleLink
 from .sms_service import MockSMSService
 
 # JWT configuration
@@ -26,11 +26,14 @@ oauth2_scheme = OAuth2PasswordBearer(
     description="Enter phone number or email as username and OTP (from POST /auth/request-otp logs) as password. New users are created automatically, with 'user' role.",
 )
 
-redis_client = redis.Redis.from_url(Config.REDIS_URL, decode_responses=True)
-
 # OTP attempt limiting constants
 MAX_OTP_ATTEMPTS = 3
 OTP_ATTEMPT_WINDOW = 15  # minutes
+
+
+def get_redis_client():
+    """Get Redis client with current configuration."""
+    return redis.Redis.from_url(Config.get_redis_url(), decode_responses=True)
 
 
 def increment_otp_attempts(phone_number: str) -> int:
@@ -43,6 +46,7 @@ def increment_otp_attempts(phone_number: str) -> int:
     Returns:
         The current attempt count
     """
+    redis_client = get_redis_client()
     key = f"otp_attempts:{phone_number}"
     current_count = redis_client.get(key)
 
@@ -67,6 +71,7 @@ def get_otp_attempts_remaining(phone_number: str) -> int:
     Returns:
         The number of attempts remaining
     """
+    redis_client = get_redis_client()
     key = f"otp_attempts:{phone_number}"
     current_count = redis_client.get(key)
 
@@ -86,6 +91,7 @@ def is_otp_attempt_limited(phone_number: str) -> bool:
     Returns:
         True if the phone number is currently limited, False otherwise
     """
+    redis_client = get_redis_client()
     key = f"otp_attempts:{phone_number}"
     current_count = redis_client.get(key)
 
@@ -102,6 +108,7 @@ def reset_otp_attempts(phone_number: str) -> None:
     Args:
         phone_number: The phone number to reset attempts for
     """
+    redis_client = get_redis_client()
     key = f"otp_attempts:{phone_number}"
     redis_client.delete(key)
 
@@ -124,6 +131,7 @@ def store_otp(phone_number: str, otp: str) -> None:
         phone_number: The phone number associated with the OTP
         otp: The OTP code to store
     """
+    redis_client = get_redis_client()
     redis_client.setex(
         f"otp:{phone_number}", timedelta(minutes=Config.OTP_EXPIRE_MINUTES), otp
     )
@@ -147,6 +155,7 @@ def verify_otp_stored(phone_number: str, otp: str) -> bool:
     # Increment the attempt counter
     increment_otp_attempts(phone_number)
 
+    redis_client = get_redis_client()
     stored_otp = redis_client.get(f"otp:{phone_number}")
     if stored_otp and stored_otp == otp:
         # OTP is correct, delete both the OTP and reset attempts
@@ -344,7 +353,7 @@ def verify_otp_and_create_user(
             session.add(user_role)
             session.commit()
             session.refresh(user_role)
-        user_role_link = UserRole(user_id=user.id, role_id=user_role.id)
+        user_role_link = UserRoleLink(user_id=user.id, role_id=user_role.id)
         session.add(user_role_link)
         session.commit()
     else:
@@ -455,6 +464,7 @@ def store_phone_change_request(user_id: str, new_phone_number: str) -> None:
         user_id: The ID of the user requesting the change
         new_phone_number: The new phone number to be verified
     """
+    redis_client = get_redis_client()
     redis_client.setex(
         f"phone_change_request:{user_id}",
         timedelta(minutes=Config.OTP_EXPIRE_MINUTES),
@@ -472,6 +482,7 @@ def get_phone_change_request(user_id: str) -> str | None:
     Returns:
         The new phone number if exists, None otherwise
     """
+    redis_client = get_redis_client()
     return redis_client.get(f"phone_change_request:{user_id}")
 
 
@@ -482,4 +493,5 @@ def delete_phone_change_request(user_id: str) -> None:
     Args:
         user_id: The ID of the user
     """
+    redis_client = get_redis_client()
     redis_client.delete(f"phone_change_request:{user_id}")
