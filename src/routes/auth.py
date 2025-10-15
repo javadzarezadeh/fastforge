@@ -147,8 +147,10 @@ async def authenticate_user_with_otp(
             detail="Invalid phone number or email format",
         )
 
+    # Get user roles to include in the token
+    user_roles = [role.name for role in user.roles]
     # Generate tokens
-    access_token = create_access_token(data={"sub": str(user.id)})
+    access_token = create_access_token(data={"sub": str(user.id)}, roles=user_roles)
     refresh_token = create_refresh_token()
 
     # Store the refresh token in the user record
@@ -188,8 +190,10 @@ async def verify_login_otp(
         )
     user = verify_otp_and_create_user(session, data.phone_number, data.otp, data.email)
 
+    # Get user roles to include in the token
+    user_roles = [role.name for role in user.roles]
     # Generate tokens
-    access_token = create_access_token(data={"sub": str(user.id)})
+    access_token = create_access_token(data={"sub": str(user.id)}, roles=user_roles)
     refresh_token = create_refresh_token()
 
     # Store the refresh token in the user record
@@ -306,8 +310,10 @@ async def refresh_access_token(
             detail="Invalid refresh token",
         )
 
+    # Get user roles to include in the token
+    user_roles = [role.name for role in user.roles]
     # Generate new tokens using user UUID as the subject
-    access_token = create_access_token(data={"sub": str(user.id)})
+    access_token = create_access_token(data={"sub": str(user.id)}, roles=user_roles)
     new_refresh_token = create_refresh_token()
 
     # Update the refresh token in the user record

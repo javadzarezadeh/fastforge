@@ -84,9 +84,11 @@ async def update_current_user(
         )
     if user_update.roles:
         # Clear existing roles
-        session.exec(
+        user_roles = session.exec(
             select(UserRole).where(UserRole.user_id == current_user.id)
-        ).delete()
+        ).all()
+        for user_role in user_roles:
+            session.delete(user_role)
         # Add new roles
         for role_name in user_update.roles:
             role = session.exec(select(Role).where(Role.name == role_name)).first()
@@ -257,7 +259,11 @@ async def update_user_by_id(
     # Update roles if provided
     if user_update.roles is not None:
         # Clear existing roles
-        session.exec(select(UserRole).where(UserRole.user_id == user.id)).delete()
+        user_roles = session.exec(
+            select(UserRole).where(UserRole.user_id == user.id)
+        ).all()
+        for user_role in user_roles:
+            session.delete(user_role)
         # Add new roles
         for role_name in user_update.roles:
             role = session.exec(select(Role).where(Role.name == role_name)).first()

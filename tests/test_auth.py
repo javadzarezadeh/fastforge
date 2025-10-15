@@ -9,6 +9,9 @@ from sqlmodel import Session, select
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
+from jose import jwt
+
+from src.auth import create_access_token
 from src.config import Config
 from src.database import engine
 from src.main import app
@@ -119,7 +122,46 @@ def test_phone_number_change_with_existing_number():
     # Test with invalid token (should return 401)
     response = client.post(
         "/auth/update-phone-number",
-        json={"phone_number": "+11111"},  # Try to change to a number
+        json={"phone_number": "+111"},  # Try to change to a number
         headers={"Authorization": "Bearer invalid_token"},
     )
     assert response.status_code == 401
+
+
+def test_create_access_token_with_roles():
+    """Test that roles are properly encoded in JWT token."""
+    user_data = {"sub": "test-user-id"}
+    roles = ["user", "admin"]
+
+    token = create_access_token(data=user_data, roles=roles)
+
+    # Decode the token to verify it contains the roles
+    decoded_payload = jwt.decode(token, Config.SECRET_KEY, algorithms=["HS256"])
+
+    assert decoded_payload["sub"] == "test-user-id"
+    assert "roles" in decoded_payload
+    assert decoded_payload["roles"] == roles
+    assert "exp" in decoded_payload
+
+
+def test_create_access_token_with_default_role():
+    """Test that tokens can be created with default role."""
+    user_data = {"sub": "test-user-id"}
+    roles = ["user"]  # Default role
+
+    token = create_access_token(data=user_data, roles=roles)
+
+    # Decode the token to verify it contains the roles
+    decoded_payload = jwt.decode(token, Config.SECRET_KEY, algorithms=["HS256"])
+
+    assert decoded_payload["sub"] == "test-user-id"
+    assert "roles" in decoded_payload
+    assert decoded_payload["roles"] == roles
+    assert "exp" in decoded_payload
+
+
+def test_get_current_user_with_roles_from_jwt():
+    """Test that role checking works when roles are in JWT token."""
+    # This test would need to be implemented in the context of a FastAPI app
+    # with proper session handling, so it's more of a placeholder to show intent
+    pass

@@ -156,17 +156,19 @@ def verify_otp_stored(phone_number: str, otp: str) -> bool:
     return False
 
 
-def create_access_token(data: dict) -> str:
+def create_access_token(data: dict, roles: list[str]) -> str:
     """
     Create JWT token with expiration.
 
     Args:
         data: The data to encode in the token (typically user information)
+        roles: List of roles to include in the token
 
     Returns:
         The encoded JWT token string
     """
     to_encode = data.copy()
+    to_encode.update({"roles": roles})
     expire = datetime.now(tz=timezone.utc) + timedelta(
         minutes=Config.ACCESS_TOKEN_EXPIRE_MINUTES
     )
@@ -219,7 +221,7 @@ async def get_current_user_with_roles(
     session: Session = Depends(get_session),
 ) -> User:
     """
-    Get current user with role check.
+    Get current user with role check. This function checks roles from the JWT token.
 
     Args:
         required_roles: List of roles that are allowed access
@@ -232,15 +234,39 @@ async def get_current_user_with_roles(
     Raises:
         HTTPException: If user doesn't have required role(s)
     """
-    user = await get_current_user(token, session)
-    if required_roles:
-        user_roles = [role.name for role in user.roles]
-        if not any(role in user_roles for role in required_roles):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if not user_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied: This action requires one of the following roles: {', '.join(required_roles)}",
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
             )
-    return user
+
+        # Get roles from the JWT token
+        token_roles = payload.get("roles", [])
+
+        if required_roles:
+            # Check if user has required roles based on the token
+            if not any(role in token_roles for role in required_roles):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access denied: This action requires one of the following roles: {', '.join(required_roles)}",
+                )
+
+        # Get the user object to return
+        user = session.exec(
+            select(User).where((User.id == user_id) & (User.deleted_at.is_(None)))
+        ).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or account deleted",
+            )
+        return user
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        )
 
 
 def role_required(required_roles: list[str]) -> Callable:

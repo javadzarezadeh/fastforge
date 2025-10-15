@@ -10,6 +10,7 @@ FastForge is a lightweight, secure, and scalable FastAPI boilerplate designed fo
 - **🔒 Secure Authentication**:
   - Phone-based registration and login with 6-digit OTPs.
   - JWT tokens for session management with configurable expiration.
+  - Roles encoded directly in JWT tokens for improved performance (no database lookup required for role checks).
   - Refresh token support for extended sessions with automatic rotation.
   - OTP attempt limiting to prevent brute force attacks.
   - Support for both phone number and email authentication.
@@ -133,6 +134,16 @@ The application implements a phone-based OTP authentication system with the foll
 ### 👤 User Management
 
 The application provides endpoints for user management, including viewing and updating user information, with role-based access control for administrative functions.
+
+### 🔐 Role-Based Access Control
+
+The application implements role-based access control (RBAC) with the following features:
+
+- **Roles in JWT Tokens**: User roles are encoded directly in JWT tokens during authentication, eliminating the need for database lookups during role-based authorization checks for improved performance.
+- **Role Assignment**: Users are assigned roles through the `UserRole` many-to-many relationship table.
+- **Protected Endpoints**: Endpoints can be protected using the `role_required` dependency, which checks for required roles in the JWT token.
+- **Default Roles**: New users are automatically assigned the 'user' role upon registration.
+- **Admin Creation**: Admin users can be created via the `/auth/create-admin` endpoint using a secret key.
 
 ### 🔍 Finding OTPs
 
