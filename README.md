@@ -26,7 +26,7 @@ FastForge is a lightweight, secure, and scalable FastAPI boilerplate designed fo
   - Centralized configuration management.
   - Mock SMS service for development (logs OTPs to console).
 - **✅ Best Practices**:
-  - Pydantic V2 for input validation.
+  - Pydantic for input validation.
   - SQLModel for ORM with PostgreSQL.
   - Async endpoints for performance.
   - Pre-commit hooks for code quality (Ruff, isort).
@@ -67,33 +67,106 @@ The application uses a centralized configuration system via the `src/config.py` 
 
 ### Local Setup
 
-1. **Clone the Repository**:
-   ```bash
-   git clone https://github.com/javadzarezadeh/fastforge.git
-   cd fastforge
-   ```
+To use FastForge as a private repository (recommended for production projects), follow these steps:
 
-2. **Install Dependencies**:
+1. **Create New Private GitHub Repo**
+
+- On GitHub, make a new private repository (e.g., `my-fastforge`).
+- **Do not fork directly** since GitHub doesn't permit changing a public fork to private.
+
+2. **Clone FastForge and Rename Directory**
+
+```bash
+git clone https://github.com/javadzarezadeh/fastforge.git my-fastforge
+cd my-fastforge
+```
+
+3. **Set Your Repo as Git Origin**
+
+- Get your private repo's SSH/HTTPS URL from GitHub.
+- Set the origin:
+
+```bash
+git remote set-url origin git@github.com:your-username/my-fastforge.git
+```
+
+4. **Add FastForge as Upstream Remote**
+
+```bash
+git remote add upstream https://github.com/javadzarezadeh/fastforge.git
+```
+
+5. **Push Code to Your Repository**
+
+```bash
+git push -u origin main
+```
+
+6. **Install Dependencies**:
    ```bash
    uv sync
    ```
 
-3. **Set Up Environment Variables**:
+7. **Set Up Environment Variables**:
    Create a `.env` file in the root directory. The `.env.example` is available as a blueprint.
 
-4. **Set Up PostgreSQL and Redis**:
+8. **Set Up PostgreSQL and Redis**:
    - Install PostgreSQL and Redis locally or use Docker (see below).
    - If installing locally, create a database with a name of your choice in PostgreSQL (make sure to update your `.env` file accordingly). When using Docker, the database will be created automatically.
 
-5. **Run Migrations**:
+9. **Run Migrations**:
    ```bash
    uv run alembic upgrade head
    ```
 
-6. **Start the Application**:
-   ```bash
-   uv run fastapi run src/main.py --port 8000 --host 0.0.0.0
-   ```
+10. **Start the Application**:
+    ```bash
+    uv run fastapi run src/main.py --port 8000 --host 0.0.0.0
+    ```
+
+### Keeping Up-to-Date with FastForge
+
+After setting up your private repository, you can keep it up-to-date with the original FastForge repository:
+
+1. **View Remotes for Verification**
+
+```bash
+git remote -v
+```
+
+You should see:
+
+```
+origin    git@github.com:your-username/my-fastforge.git (fetch)
+origin    git@github.com:your-username/my-fastforge.git (push)
+upstream  https://github.com/javadzarezadeh/fastforge.git (fetch)
+upstream  https://github.com/javadzarezadeh/fastforge.git (push)
+```
+
+2. **Pull Latest Updates (Without Immediate Commit)**
+
+```bash
+git pull --no-commit upstream main
+```
+
+- This downloads but does not commit changes, letting you resolve conflicts first.
+
+3. **Resolve Conflicts**
+
+- Open files with conflicts in your editor and fix them as needed.
+- After resolving conflicts, stage the resolved files:
+
+```bash
+git add .
+```
+
+4. **Commit the Merge**
+
+```bash
+git commit
+```
+
+This approach allows you to keep your customizations while receiving updates from the original boilerplate.
 
 ### Docker Setup
 
@@ -222,32 +295,6 @@ fastforge/
 5. Push to branch: `git push origin feature/your-feature`
 6. Open a pull request
 
-## 🔄 Updating from the Boilerplate
-
-If you're using this boilerplate for your own project and want to receive updates from the original repository, follow this workflow:
-
-1. Fork the repository to your own GitHub account
-2. Clone your fork locally: `git clone https://github.com/your-username/fastforge.git`
-3. Add the original repository as an upstream remote:
-   ```bash
-   git remote add upstream https://github.com/javadzarezadeh/fastforge.git
-   ```
-4. Fetch upstream changes:
-   ```bash
-   git fetch upstream
-   ```
-5. Merge upstream changes into your main branch:
-   ```bash
-   git checkout main
-   git merge upstream/main
-   ```
-6. Resolve any merge conflicts if they occur
-7. Push the updated code to your fork:
-   ```bash
-   git push origin main
-   ```
-
-This approach allows you to keep your customizations while receiving updates from the original boilerplate.
 
 ## 💰 Crypto Donations
 
