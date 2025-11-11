@@ -1,7 +1,7 @@
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 # Install uv from official image
-COPY --from=ghcr.io/astral-sh/uv:0.9.2 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.9.8 /uv /uvx /bin/
 
 RUN useradd --create-home --shell /bin/bash app
 
